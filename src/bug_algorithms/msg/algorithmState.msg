@@ -1,0 +1,8 @@
+uint8 algorithm
+string name
+float32 pose_x
+float32 pose_y
+float32 yaw
+float32 initial_to_goal_distance
+float32 current_to_goal_distance
+float32 path_length

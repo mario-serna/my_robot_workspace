@@ -1,0 +1,42 @@
+#print "L0: %f L1: %f L2: %f L3: %f L4: %f L5: %f L6: %f L7: %f"%(laser[0],laser[1],laser[2],laser[3],laser[4],laser[5],laser[6],laser[7])
+"""if(girar == 0):
+    if(laser[3] <= 0.4 or laser[4] <= 0.4):
+        girar = 1
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+    else:
+        if(laser[0] <= 0.4 or laser[7] <= 0.4):
+            girar = 1
+            twist.linear.x = 0.0
+            twist.angular.z = 0.0
+        else:
+            print "libre"
+            libre = 1
+else:
+    print "Obstacle"
+    if(girar == 1 and girarIzq == 2):
+        if((laser[1] + laser[2]) < (laser[5] + laser[6])):
+            print "Girar izquierda"
+            twist.angular.z = 0.1
+            girarIzq = 1
+        else:
+            print "Girar derecha"
+            twist.angular.z = -0.1
+            girarIzq = 0
+    if(girarIzq == 1):
+        print "L3: %f L2: %f L1: %f L0: %f" % (laser[3],laser[2],laser[1],laser[0])
+        if(laser[0] <= 0.5 and laser[1] > 0.5 and laser[2:3] > 0.45):
+            twist.angular.z = 0.0
+            girar = 0
+            girarIzq = 2
+            libre = 1
+    if (girarIzq == 0):
+        print "L7: %f L6: %f L5: %f L4: %f" % (laser[7],laser[6],laser[5],laser[4])
+        if (laser[7] <= 0.5 and laser[6] > 0.5 and laser[4:5] > 0.45):
+            twist.angular.z = 0.0
+            girar = 0
+            girarIzq = 2
+            libre = 1
+
+pub.publish(twist)
+return 1"""

@@ -29,7 +29,7 @@ static int algorithm_id = 6;
 enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 static int node_state_ = Waiting;
 
-enum States {GoToPoint, GoToDiscontinuity, FollowBoundary, Success, Fail};
+enum States {GoToPoint, GoToPointFollowing, FollowBoundary, Success, Fail};
 static int state_ = GoToPoint;
 static int count_state_time = 0; // Seconds the robot is in a state
 static int count_loop = 0;
@@ -67,6 +67,7 @@ static float followed_distance = 0.0;
 static float reach_distance = 0.0;
 static float leave_distance = 0.0;
 static bool lockPoint = false;
+static bool isInitAlign = true;
 geometry_msgs::Point target = geometry_msgs::Point();
 
 static bool reverseCriterion;
@@ -93,7 +94,7 @@ static map<int, string> node_state_desc = {
 
 static map<int, string> state_desc_ = {
   {GoToPoint, "Go to the point"},
-  {GoToDiscontinuity, "Go to the discontinuity point"},
+  {GoToPointFollowing, "Go to the discontinuity point"},
   {FollowBoundary, "Follow the obstacle boundary"},
   {Success, "Goal reached"},
   {Fail, "Fail - Goal not reachable"}
@@ -212,6 +213,7 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   a_state.yaw = yaw_;
   a_state.initial_to_goal_distance = initial_to_goal_distance;
   a_state.current_to_goal_distance = current_to_goal_distance;
+  a_state.best_distance = best_distance;
   a_state.path_length = path_length;
   algorithm_state_pub.publish(a_state);
 }
@@ -272,8 +274,11 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
   if((current_to_goal_distance - free_distance) <= 0){
     target = desired_position_;
     lockPoint = false;
-  } else if(!lockPoint && free_distance > 3.5){
+  } else if(isInitAlign || (!lockPoint && free_distance > 3.5)){
     target = desired_position_;
+    // Make sure the robot is align
+    if(abs(err_yaw) < PI/20)
+      isInitAlign = false;
 
   } else{
 
@@ -329,26 +334,34 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
       if(disPointIndex.size() > 0){
 
         for(int i = 0; i < disPointIndex.size(); i++){
-          float val = mapRangeFloat(disPointIndex[i], 0, size-1, -range, range);
-          // Discontinuity point pose stimation
-          p.x  = laser_position_.x + (disPointVal[i]*cos(yaw_ + val));
-          p.y  = laser_position_.y + (disPointVal[i]*sin(yaw_ + val));
+          if(disPointVal[i] > 1){
+            float val = mapRangeFloat(disPointIndex[i], 0, size-1, -range, range);
+            // Discontinuity point pose stimation
+            p.x  = laser_position_.x + (disPointVal[i]*cos(yaw_ + val));
+            p.y  = laser_position_.y + (disPointVal[i]*sin(yaw_ + val));
 
-          current_to_point_distance = round(getDistance(position_, p), 2);
-          point_distance = current_to_point_distance + round(getDistance(p, desired_position_), 2);
+            current_to_point_distance = round(getDistance(position_, p), 2);
+            // Total distance = current position to point + point position to goal
+            point_distance = current_to_point_distance + round(getDistance(p, desired_position_), 2);
 
-          if(point_distance < best_point_distance){
-            best_point_distance = point_distance;
-            n = disPointIndex[i];
-            target = p;
+            if(point_distance < best_point_distance){
+              best_point_distance = point_distance;
+              n = disPointIndex[i];
+              target = p;
+              target.z = best_point_distance;
+            }
           }
 
           //cout << "Ind: " << disPointIndex[i] << " | Val: " << val;
           //cout << setprecision(2) << " | X: " << p.x << " | Y: " << p.y << " | Dist: " << setprecision(4) << point_distance << endl;
         }
 
-        if(disPointIndex.size() < 3 && abs(err_yaw) < PI/60){
+        if(best_point_distance < 999 && disPointIndex.size() < 3 && (abs(err_yaw) < PI/20)){
           lockPoint = true;
+        } else if(best_point_distance > 999 || best_point_distance < current_to_goal_distance){
+          best_point_distance = 0;
+          target = desired_position_;
+          target.z = best_point_distance;
         }
 
         //cout << "Align point: " << laser_align_index << endl;
@@ -358,14 +371,18 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
 
         best_point_distance = 0;
         target = desired_position_;
+        target.z = best_point_distance;
         //cout << "Best point: " << laser_align_index << endl;
         //cout << "Best distance: " << best_point_distance << endl;
       }
+    } else{
+      cout << "Point Locked!!" << endl;
+      cout << "X: " << target.x << " | Y: " << target.y << endl;
     }
   }
 
   target_point_pub.publish(target);
-  //cout << "Discontinuity points: " << disPointIndex.size() << endl;
+  cout << "Discontinuity points: " << disPointIndex.size() << endl;
 }
 
 void waitPose(){
@@ -395,6 +412,12 @@ void changeState(int state){
     srv_client_go_to_point.call(srv);
     srv.request.state = Stopping;
     srv_client_follow_boundary.call(srv);
+  } else if(state_ == GoToPointFollowing){
+    //ROS_INFO("Calling follow boundary!");
+    srv.request.state = Stopping;
+    srv_client_go_to_point.call(srv);
+    srv.request.state = Initializing;
+    srv_client_follow_boundary.call(srv);
   } else if(state_ == FollowBoundary){
     //ROS_INFO("Calling follow boundary!");
     srv.request.state = Stopping;
@@ -420,6 +443,16 @@ void lostObstacleCallback(const std_msgs::Bool::ConstPtr& msg){
     ROS_INFO("Obstacle lost!");
     changeState(GoToPoint);
   }
+}
+
+bool isOnPointRange(geometry_msgs::Point robot, geometry_msgs::Point point,float tolerance){
+  if((abs(robot.x - point.x) < tolerance) &&
+     (abs(robot.y - point.y) < tolerance)){
+    //ROS_INFO("Robot is in the hit point range!");
+    return true;
+  }
+  //ROS_INFO("Robot is out of range from the hit point!");
+  return false;
 }
 
 void initBug(ros::NodeHandle& nh){
@@ -450,6 +483,7 @@ void initBug(ros::NodeHandle& nh){
 
   // Path length variables
   isPreviousReady = false;
+  isInitAlign = true;
   path_length = 0;
 
   if(isSimulation){
@@ -529,81 +563,153 @@ void pauseBug(bool isPause){
   }
 }
 
+int isFreePath(float tol){
+  float desired_yaw = atan2(desired_position_.y - position_.y, desired_position_.x - position_.x);
+  float err_yaw = normalizeAngle(desired_yaw - yaw_);
+
+  if(abs(err_yaw) < (PI/2)){
+    // Check if there is a free path
+    if(abs(err_yaw) < (PI/6) && regions_["front_left"] > dist_detection+tol
+       && regions_["front"] > dist_detection+tol && regions_["front_right"] > dist_detection+tol){
+      //ROS_INFO("Less than 30 deg");
+      return 1;
+
+    } else if(err_yaw > 0 && (abs(err_yaw) > (PI/6)) && (abs(err_yaw) < (PI/2))
+              && regions_["left"] > dist_detection+0.2 && regions_["front_left"] > dist_detection+0.2){
+      //ROS_INFO("Between 30 and 90 - to the left");
+      return 1;
+
+    } else if(err_yaw < 0 && (abs(err_yaw) > (PI/6)) && (abs(err_yaw) < (PI/2))
+              && regions_["right"] > dist_detection+0.2 && regions_["front_right"] > dist_detection+0.2){
+      //ROS_INFO("Between 30 and 90 - to the right");
+      return 1;
+    }
+  } else{
+    // Ignore
+    return 2;
+  }
+
+  // There is not a free path
+  return 0;
+}
+
 void bugConditions(){
 
   float step = 2;
+  bool isCurrentClose = false;
 
   current_to_goal_distance = getDistance(position_, desired_position_);
   desired_yaw = atan2(desired_position_.y - position_.y, desired_position_.x - position_.x);
   err_yaw = normalizeAngle(desired_yaw - yaw_);
 
-  if(current_to_goal_distance+0.3 < best_distance){
+  if(current_to_goal_distance+0.1 < best_distance){
     best_distance = current_to_goal_distance;
+    isCurrentClose = true;
   }
 
-  if(state_ == GoToPoint){
-    if (current_to_goal_distance > best_distance+0.2){
-      if(regions_["left"] < dist_detection+0.2 || regions_["right"] < dist_detection+0.2){
-        if(lockPoint){
-          lockPoint = false;
-          changeState(FollowBoundary);
+  if(state_ == GoToPoint || state_ == GoToPointFollowing){
+    if(state_ == GoToPoint && isFreePath(0) == 0){
+      changeState(GoToPointFollowing);
+      return;
+    }
+
+    if(state_ == GoToPointFollowing){
+      if(!leaveCondition){
+        if(isFreePath(0.3) == 1){
+          if(free_distance > 1){
+            cout << "Leave condition 2: " << current_to_goal_distance - free_distance << endl;
+            cout << "Free: " << free_distance << endl;
+            leaveCondition = true;
+            count_tolerance = 0;
+          } else if((current_to_goal_distance - free_distance) <= 0){
+            cout << "Leave condition 1: " << current_to_goal_distance - free_distance << endl;
+            cout << "Free: " << free_distance << endl;
+            leaveCondition = true;
+            count_tolerance = 0;
+          }
         }
+
+      } else if(count_tolerance > 2){
+        leaveCondition = false;
+        changeState(GoToPoint);
+        return;
+      }
+    }
+
+    if(regions_["left"] < dist_detection+0.1 || regions_["right"] < dist_detection+0.1){
+      if(lockPoint && isOnPointRange(position_,target, 0.5)){
+        cout << "Condition 1" << endl;
+        lockPoint = false;
+        changeState(FollowBoundary);
+        return;
       }
 
-      // Checking if the robot reaches the goal with a presition of 0.3 meters
-    } else if(getDistance(position_, desired_position_) < 0.3){
+      if(current_to_goal_distance-0.2 > best_distance){
+        cout << "Condition 2" << endl;
+        changeState(FollowBoundary);
+        return;
+      }
+    }
+
+    if(getDistance(position_, desired_position_) < 0.3){
       changeState(Success);
+      return;
     }
   } else if(state_ == FollowBoundary){
     lockPoint = false;
 
     // Terminate boundary following behavior when reach_distance < followed_distance
     /*if(reach_distance < followed_distance){
-      changeState(GoToPoint);
-    }*/
+         changeState(GoToPoint);
+       }*/
 
     // If the free distance from the current position to goal is gratter than rangeMax (4m) then set freeDistance = rangeMax
 
-    float hit_to_goal_distance = getDistance(hit_point, desired_position_);
+    /*float hit_to_goal_distance = getDistance(hit_point, desired_position_);
 
-    if(count_state_time > 10){
+       if(count_state_time > 10){
 
-      if(getDistance(position_, hit_point) < 0.3){
-        count_same_point++;
-        if(reverseCriterion && count_same_point == 2){
-          cout << "Count for hit point is: " << count_same_point << endl;
-          changeState(Fail);
-          return;
-        } else if(!reverseCriterion){
-          cout << "Count for hit point is: " << count_same_point << endl;
-          changeState(Fail);
-          return;
-        }
-        cout << "Count for hit point is: " << count_same_point << endl;
-        count_state_time = 0;
+         if(getDistance(position_, hit_point) < 0.3){
+           count_same_point++;
+           if(reverseCriterion && count_same_point == 2){
+             cout << "Count for hit point is: " << count_same_point << endl;
+             changeState(Fail);
+             return;
+           } else if(!reverseCriterion){
+             cout << "Count for hit point is: " << count_same_point << endl;
+             changeState(Fail);
+             return;
+           }
+           cout << "Count for hit point is: " << count_same_point << endl;
+           count_state_time = 0;
 
-      }
-    }
+         }
+       }*/
 
     if(!leaveCondition){
-      // DistBug
-      if(current_to_goal_distance < hit_to_goal_distance){
-        if(current_to_goal_distance - free_distance <= best_distance - step){
-          cout << "Leave condition 2: " << current_to_goal_distance - free_distance << " < " << best_distance - step << endl;
+
+      if(isCurrentClose){
+        if(free_distance > 1){
+          cout << "Leave condition 2: " << current_to_goal_distance - free_distance << endl;
+          cout << "Free: " << free_distance << endl;
+          leaveCondition = true;
+          count_tolerance = 0;
+        } else if((current_to_goal_distance - free_distance) <= 0){
+          cout << "Leave condition 1: " << current_to_goal_distance - free_distance << endl;
           cout << "Free: " << free_distance << endl;
           leaveCondition = true;
           count_tolerance = 0;
         }
-      } else if((current_to_goal_distance - free_distance) <= 0){
-        cout << "Leave condition 1: " << current_to_goal_distance - free_distance << endl;
-        cout << "Free: " << free_distance << endl;
-        leaveCondition = true;
-        count_tolerance = 0;
+
       }
 
-    } else if(count_tolerance > 5){
+    } else if(count_tolerance > 1){
       leaveCondition = false;
-      changeState(GoToPoint);
+      if(isFreePath(0.3) == 0){
+        changeState(GoToPointFollowing);
+      } else{
+        changeState(GoToPoint);
+      }
     }
   }
 }
@@ -623,6 +729,7 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   // While the node is in Pause, it only will call the pauseBug function once.
   bool pauseBand = true;
+  int count = 0;
 
   nodeStateGlobal.algorithm = algorithm_id;
 
@@ -670,7 +777,11 @@ int main(int argc, char **argv)
       count_state_time++;
       count_tolerance++;
       count_loop = 0;
-      custom_queue.callAvailable();
+      ++count;
+      if(count > 0){
+        custom_queue.callAvailable();
+        count = 0;
+      }
     }
   }
 

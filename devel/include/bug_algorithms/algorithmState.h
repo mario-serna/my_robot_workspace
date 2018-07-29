@@ -31,6 +31,7 @@ struct algorithmState_
     , yaw(0.0)
     , initial_to_goal_distance(0.0)
     , current_to_goal_distance(0.0)
+    , best_distance(0.0)
     , path_length(0.0)  {
     }
   algorithmState_(const ContainerAllocator& _alloc)
@@ -41,6 +42,7 @@ struct algorithmState_
     , yaw(0.0)
     , initial_to_goal_distance(0.0)
     , current_to_goal_distance(0.0)
+    , best_distance(0.0)
     , path_length(0.0)  {
   (void)_alloc;
     }
@@ -67,6 +69,9 @@ struct algorithmState_
 
    typedef float _current_to_goal_distance_type;
   _current_to_goal_distance_type current_to_goal_distance;
+
+   typedef float _best_distance_type;
+  _best_distance_type best_distance;
 
    typedef float _path_length_type;
   _path_length_type path_length;
@@ -149,12 +154,12 @@ struct MD5Sum< ::bug_algorithms::algorithmState_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "952308ef00da013e137aadd9bfb800a2";
+    return "eed00cdf20aebf4db1b70bfc80462703";
   }
 
   static const char* value(const ::bug_algorithms::algorithmState_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0x952308ef00da013eULL;
-  static const uint64_t static_value2 = 0x137aadd9bfb800a2ULL;
+  static const uint64_t static_value1 = 0xeed00cdf20aebf4dULL;
+  static const uint64_t static_value2 = 0xb1b70bfc80462703ULL;
 };
 
 template<class ContainerAllocator>
@@ -180,6 +185,7 @@ float32 pose_y\n\
 float32 yaw\n\
 float32 initial_to_goal_distance\n\
 float32 current_to_goal_distance\n\
+float32 best_distance\n\
 float32 path_length\n\
 ";
   }
@@ -206,6 +212,7 @@ namespace serialization
       stream.next(m.yaw);
       stream.next(m.initial_to_goal_distance);
       stream.next(m.current_to_goal_distance);
+      stream.next(m.best_distance);
       stream.next(m.path_length);
     }
 
@@ -239,6 +246,8 @@ struct Printer< ::bug_algorithms::algorithmState_<ContainerAllocator> >
     Printer<float>::stream(s, indent + "  ", v.initial_to_goal_distance);
     s << indent << "current_to_goal_distance: ";
     Printer<float>::stream(s, indent + "  ", v.current_to_goal_distance);
+    s << indent << "best_distance: ";
+    Printer<float>::stream(s, indent + "  ", v.best_distance);
     s << indent << "path_length: ";
     Printer<float>::stream(s, indent + "  ", v.path_length);
   }

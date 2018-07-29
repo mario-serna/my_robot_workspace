@@ -14,7 +14,7 @@
 
 (defclass bug_algorithms::algorithmState
   :super ros::object
-  :slots (_algorithm _name _pose_x _pose_y _yaw _initial_to_goal_distance _current_to_goal_distance _path_length ))
+  :slots (_algorithm _name _pose_x _pose_y _yaw _initial_to_goal_distance _current_to_goal_distance _best_distance _path_length ))
 
 (defmethod bug_algorithms::algorithmState
   (:init
@@ -26,6 +26,7 @@
     ((:yaw __yaw) 0.0)
     ((:initial_to_goal_distance __initial_to_goal_distance) 0.0)
     ((:current_to_goal_distance __current_to_goal_distance) 0.0)
+    ((:best_distance __best_distance) 0.0)
     ((:path_length __path_length) 0.0)
     )
    (send-super :init)
@@ -36,6 +37,7 @@
    (setq _yaw (float __yaw))
    (setq _initial_to_goal_distance (float __initial_to_goal_distance))
    (setq _current_to_goal_distance (float __current_to_goal_distance))
+   (setq _best_distance (float __best_distance))
    (setq _path_length (float __path_length))
    self)
   (:algorithm
@@ -59,6 +61,9 @@
   (:current_to_goal_distance
    (&optional __current_to_goal_distance)
    (if __current_to_goal_distance (setq _current_to_goal_distance __current_to_goal_distance)) _current_to_goal_distance)
+  (:best_distance
+   (&optional __best_distance)
+   (if __best_distance (setq _best_distance __best_distance)) _best_distance)
   (:path_length
    (&optional __path_length)
    (if __path_length (setq _path_length __path_length)) _path_length)
@@ -78,6 +83,8 @@
     ;; float32 _initial_to_goal_distance
     4
     ;; float32 _current_to_goal_distance
+    4
+    ;; float32 _best_distance
     4
     ;; float32 _path_length
     4
@@ -100,6 +107,8 @@
        (sys::poke _initial_to_goal_distance (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;; float32 _current_to_goal_distance
        (sys::poke _current_to_goal_distance (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
+     ;; float32 _best_distance
+       (sys::poke _best_distance (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;; float32 _path_length
        (sys::poke _path_length (send s :buffer) (send s :count) :float) (incf (stream-count s) 4)
      ;;
@@ -120,13 +129,15 @@
      (setq _initial_to_goal_distance (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;; float32 _current_to_goal_distance
      (setq _current_to_goal_distance (sys::peek buf ptr- :float)) (incf ptr- 4)
+   ;; float32 _best_distance
+     (setq _best_distance (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;; float32 _path_length
      (setq _path_length (sys::peek buf ptr- :float)) (incf ptr- 4)
    ;;
    self)
   )
 
-(setf (get bug_algorithms::algorithmState :md5sum-) "952308ef00da013e137aadd9bfb800a2")
+(setf (get bug_algorithms::algorithmState :md5sum-) "eed00cdf20aebf4db1b70bfc80462703")
 (setf (get bug_algorithms::algorithmState :datatype-) "bug_algorithms/algorithmState")
 (setf (get bug_algorithms::algorithmState :definition-)
       "uint8 algorithm
@@ -136,12 +147,13 @@ float32 pose_y
 float32 yaw
 float32 initial_to_goal_distance
 float32 current_to_goal_distance
+float32 best_distance
 float32 path_length
 
 ")
 
 
 
-(provide :bug_algorithms/algorithmState "952308ef00da013e137aadd9bfb800a2")
+(provide :bug_algorithms/algorithmState "eed00cdf20aebf4db1b70bfc80462703")
 
 

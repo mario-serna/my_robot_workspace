@@ -42,6 +42,11 @@
     :initarg :current_to_goal_distance
     :type cl:float
     :initform 0.0)
+   (best_distance
+    :reader best_distance
+    :initarg :best_distance
+    :type cl:float
+    :initform 0.0)
    (path_length
     :reader path_length
     :initarg :path_length
@@ -92,6 +97,11 @@
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader bug_algorithms-msg:current_to_goal_distance-val is deprecated.  Use bug_algorithms-msg:current_to_goal_distance instead.")
   (current_to_goal_distance m))
 
+(cl:ensure-generic-function 'best_distance-val :lambda-list '(m))
+(cl:defmethod best_distance-val ((m <algorithmState>))
+  (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader bug_algorithms-msg:best_distance-val is deprecated.  Use bug_algorithms-msg:best_distance instead.")
+  (best_distance m))
+
 (cl:ensure-generic-function 'path_length-val :lambda-list '(m))
 (cl:defmethod path_length-val ((m <algorithmState>))
   (roslisp-msg-protocol:msg-deprecation-warning "Using old-style slot reader bug_algorithms-msg:path_length-val is deprecated.  Use bug_algorithms-msg:path_length instead.")
@@ -126,6 +136,11 @@
     (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 24) bits) ostream))
   (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'current_to_goal_distance))))
+    (cl:write-byte (cl:ldb (cl:byte 8 0) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 8) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
+    (cl:write-byte (cl:ldb (cl:byte 8 24) bits) ostream))
+  (cl:let ((bits (roslisp-utils:encode-single-float-bits (cl:slot-value msg 'best_distance))))
     (cl:write-byte (cl:ldb (cl:byte 8 0) bits) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 8) bits) ostream)
     (cl:write-byte (cl:ldb (cl:byte 8 16) bits) ostream)
@@ -182,6 +197,12 @@
       (cl:setf (cl:ldb (cl:byte 8 8) bits) (cl:read-byte istream))
       (cl:setf (cl:ldb (cl:byte 8 16) bits) (cl:read-byte istream))
       (cl:setf (cl:ldb (cl:byte 8 24) bits) (cl:read-byte istream))
+    (cl:setf (cl:slot-value msg 'best_distance) (roslisp-utils:decode-single-float-bits bits)))
+    (cl:let ((bits 0))
+      (cl:setf (cl:ldb (cl:byte 8 0) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 8) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 16) bits) (cl:read-byte istream))
+      (cl:setf (cl:ldb (cl:byte 8 24) bits) (cl:read-byte istream))
     (cl:setf (cl:slot-value msg 'path_length) (roslisp-utils:decode-single-float-bits bits)))
   msg
 )
@@ -193,20 +214,21 @@
   "bug_algorithms/algorithmState")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql '<algorithmState>)))
   "Returns md5sum for a message object of type '<algorithmState>"
-  "952308ef00da013e137aadd9bfb800a2")
+  "eed00cdf20aebf4db1b70bfc80462703")
 (cl:defmethod roslisp-msg-protocol:md5sum ((type (cl:eql 'algorithmState)))
   "Returns md5sum for a message object of type 'algorithmState"
-  "952308ef00da013e137aadd9bfb800a2")
+  "eed00cdf20aebf4db1b70bfc80462703")
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql '<algorithmState>)))
   "Returns full string definition for message of type '<algorithmState>"
-  (cl:format cl:nil "uint8 algorithm~%string name~%float32 pose_x~%float32 pose_y~%float32 yaw~%float32 initial_to_goal_distance~%float32 current_to_goal_distance~%float32 path_length~%~%~%"))
+  (cl:format cl:nil "uint8 algorithm~%string name~%float32 pose_x~%float32 pose_y~%float32 yaw~%float32 initial_to_goal_distance~%float32 current_to_goal_distance~%float32 best_distance~%float32 path_length~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:message-definition ((type (cl:eql 'algorithmState)))
   "Returns full string definition for message of type 'algorithmState"
-  (cl:format cl:nil "uint8 algorithm~%string name~%float32 pose_x~%float32 pose_y~%float32 yaw~%float32 initial_to_goal_distance~%float32 current_to_goal_distance~%float32 path_length~%~%~%"))
+  (cl:format cl:nil "uint8 algorithm~%string name~%float32 pose_x~%float32 pose_y~%float32 yaw~%float32 initial_to_goal_distance~%float32 current_to_goal_distance~%float32 best_distance~%float32 path_length~%~%~%"))
 (cl:defmethod roslisp-msg-protocol:serialization-length ((msg <algorithmState>))
   (cl:+ 0
      1
      4 (cl:length (cl:slot-value msg 'name))
+     4
      4
      4
      4
@@ -224,5 +246,6 @@
     (cl:cons ':yaw (yaw msg))
     (cl:cons ':initial_to_goal_distance (initial_to_goal_distance msg))
     (cl:cons ':current_to_goal_distance (current_to_goal_distance msg))
+    (cl:cons ':best_distance (best_distance msg))
     (cl:cons ':path_length (path_length msg))
 ))

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-    <node pkg="bug_algorithms" type="follow_boundary" name="follow_boundary" output="screen"/>
-    <node pkg="bug_algorithms" type="follow_boundary_advance" name="follow_boundary_advance" output="screen"/>
+    <node pkg="bug_algorithms" type="follow_boundary" name="follow_boundary"/>
+    <node pkg="bug_algorithms" type="follow_boundary_advance" name="follow_boundary_advance"/>
     <node pkg="bug_algorithms" type="go_to_point" name="go_to_point"/>
-    <node pkg="bug_algorithms" type="go_to_point_advance" name="go_to_point_advance" output="screen"/>
+    <node pkg="bug_algorithms" type="go_to_point_advance" name="go_to_point_advance"/>
     <node pkg="bug_algorithms" type="bug0" name="bug0" output="screen"/>
     <node pkg="bug_algorithms" type="bug1" name="bug1" output="screen"/>
     <node pkg="bug_algorithms" type="bug2" name="bug2" output="screen"/>

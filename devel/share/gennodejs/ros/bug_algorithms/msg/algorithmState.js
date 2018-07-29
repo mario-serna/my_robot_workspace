@@ -25,6 +25,7 @@ class algorithmState {
       this.yaw = null;
       this.initial_to_goal_distance = null;
       this.current_to_goal_distance = null;
+      this.best_distance = null;
       this.path_length = null;
     }
     else {
@@ -70,6 +71,12 @@ class algorithmState {
       else {
         this.current_to_goal_distance = 0.0;
       }
+      if (initObj.hasOwnProperty('best_distance')) {
+        this.best_distance = initObj.best_distance
+      }
+      else {
+        this.best_distance = 0.0;
+      }
       if (initObj.hasOwnProperty('path_length')) {
         this.path_length = initObj.path_length
       }
@@ -95,6 +102,8 @@ class algorithmState {
     bufferOffset = _serializer.float32(obj.initial_to_goal_distance, buffer, bufferOffset);
     // Serialize message field [current_to_goal_distance]
     bufferOffset = _serializer.float32(obj.current_to_goal_distance, buffer, bufferOffset);
+    // Serialize message field [best_distance]
+    bufferOffset = _serializer.float32(obj.best_distance, buffer, bufferOffset);
     // Serialize message field [path_length]
     bufferOffset = _serializer.float32(obj.path_length, buffer, bufferOffset);
     return bufferOffset;
@@ -118,6 +127,8 @@ class algorithmState {
     data.initial_to_goal_distance = _deserializer.float32(buffer, bufferOffset);
     // Deserialize message field [current_to_goal_distance]
     data.current_to_goal_distance = _deserializer.float32(buffer, bufferOffset);
+    // Deserialize message field [best_distance]
+    data.best_distance = _deserializer.float32(buffer, bufferOffset);
     // Deserialize message field [path_length]
     data.path_length = _deserializer.float32(buffer, bufferOffset);
     return data;
@@ -126,7 +137,7 @@ class algorithmState {
   static getMessageSize(object) {
     let length = 0;
     length += object.name.length;
-    return length + 29;
+    return length + 33;
   }
 
   static datatype() {
@@ -136,7 +147,7 @@ class algorithmState {
 
   static md5sum() {
     //Returns md5sum for a message object
-    return '952308ef00da013e137aadd9bfb800a2';
+    return 'eed00cdf20aebf4db1b70bfc80462703';
   }
 
   static messageDefinition() {
@@ -149,6 +160,7 @@ class algorithmState {
     float32 yaw
     float32 initial_to_goal_distance
     float32 current_to_goal_distance
+    float32 best_distance
     float32 path_length
     
     `;
@@ -207,6 +219,13 @@ class algorithmState {
     }
     else {
       resolved.current_to_goal_distance = 0.0
+    }
+
+    if (msg.best_distance !== undefined) {
+      resolved.best_distance = msg.best_distance;
+    }
+    else {
+      resolved.best_distance = 0.0
     }
 
     if (msg.path_length !== undefined) {

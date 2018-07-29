@@ -142,7 +142,7 @@ void waitLaser(){
     ros::spinOnce();
   }
 }
-
+/*
 // Following boundary actions
 void chooseDirection(){
   //cout << "Left: " << regions_["front_left"] << " | Right: " << regions_["front_right"] << endl;
@@ -201,7 +201,7 @@ void followBoundary(){
   twist_msg.angular.z = 0.0;
   vel_pub.publish(twist_msg);
 }
-
+*/
 void fixYaw(geometry_msgs::Point des_position, float precision){
   float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
   float err_yaw = normalizeAngle(desired_yaw - yaw_);
@@ -220,10 +220,37 @@ void fixYaw(geometry_msgs::Point des_position, float precision){
   }
 
   if(abs(err_yaw) <= yaw_precision_){
-    changeState(MoveAvoiding);
+    changeState(GoStraight);
   }
 }
+/*
+void adjustYaw(geometry_msgs::Point des_position, float precision){
+  float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
+  float err_yaw = normalizeAngle(desired_yaw - yaw_);
 
+  //ROS_INFO("Yaw error: %f", err_yaw);
+
+  twist_msg = geometry_msgs::Twist();
+
+  string dir = isLeft ? "left" : "right";
+
+  if(abs(desired_position_.x - des_position.x) == 0 && abs(desired_position_.y - des_position.y) == 0){
+    changeState(FixYaw);
+    return;
+  }
+
+  if(regions_[dir] > dist_detection){
+    findBoundary();
+  } else if(abs(err_yaw) > yaw_precision_ && abs(err_yaw) < yaw_precision_*precision){
+    twist_msg.linear.x = linear_vel_;
+    twist_msg.angular.z = (err_yaw > 0 ? 0.3 : -0.3);
+    vel_pub.publish(twist_msg);
+  } else if(abs(err_yaw) > yaw_precision_){
+    twist_msg.angular.z = (err_yaw > 0 ? angular_vel_ : -angular_vel_);
+    vel_pub.publish(twist_msg);
+  }
+}
+*/
 void goStraightAhead(geometry_msgs::Point des_position){
   float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
   float err_yaw = desired_yaw - yaw_;
@@ -246,7 +273,7 @@ void goStraightAhead(geometry_msgs::Point des_position){
     changeState(FixYaw);
   }
 }
-
+/*
 void moveToGoalAvoiding(geometry_msgs::Point des_position){
   float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
   float err_yaw = desired_yaw - yaw_;
@@ -254,6 +281,8 @@ void moveToGoalAvoiding(geometry_msgs::Point des_position){
   float r1,r2,r3,rCrit;
 
   chooseDirection();
+
+  string direction = isLeft ? "Left" : "Right";
 
   if(isLeft){
     r1 = regions_["front_right"];
@@ -270,10 +299,10 @@ void moveToGoalAvoiding(geometry_msgs::Point des_position){
      (r2 < dist_detection-0.1)){
     if((regions_["front"] > dist_detection+0.1) && (r3 > 0.3)){
       turnLeft();
-      cout << "Turn Left" << endl;
+      cout << "Turn " << direction << endl;
     } else{
       turnLeftOnly();
-      cout << "Turn Left Only" << endl;
+      cout << "Turn "<< direction <<" Only" << endl;
     }
   } else if(r3 > 0.3 && r3 < dist_detection){
     followBoundary();
@@ -295,7 +324,7 @@ void moveToGoalAvoiding(geometry_msgs::Point des_position){
     ROS_INFO("Position error: %f", err_pos);
     changeState(Done);
   }
-}
+}*/
 
 void stop(){
   twist_msg = geometry_msgs::Twist();
@@ -371,8 +400,8 @@ int main(int argc, char **argv)
         fixYaw(target_position_,3);
       else if(state_ == GoStraight)
         goStraightAhead(target_position_);
-      else if(state_ == MoveAvoiding)
-        moveToGoalAvoiding(target_position_);
+      /*else if(state_ == MoveAvoiding)
+        moveToGoalAvoiding(target_position_);*/
       else if(state_ == Done){
         stop();
         node_state_ = Waiting;

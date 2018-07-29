@@ -1,10 +1,10 @@
 
 "use strict";
 
-let algorithmState = require('./algorithmState.js');
 let nodeState = require('./nodeState.js');
+let algorithmState = require('./algorithmState.js');
 
 module.exports = {
-  algorithmState: algorithmState,
   nodeState: nodeState,
+  algorithmState: algorithmState,
 };

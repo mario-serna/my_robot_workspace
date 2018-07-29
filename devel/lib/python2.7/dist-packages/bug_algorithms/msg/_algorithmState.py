@@ -7,7 +7,7 @@ import struct
 
 
 class algorithmState(genpy.Message):
-  _md5sum = "952308ef00da013e137aadd9bfb800a2"
+  _md5sum = "eed00cdf20aebf4db1b70bfc80462703"
   _type = "bug_algorithms/algorithmState"
   _has_header = False #flag to mark the presence of a Header object
   _full_text = """uint8 algorithm
@@ -17,10 +17,11 @@ float32 pose_y
 float32 yaw
 float32 initial_to_goal_distance
 float32 current_to_goal_distance
+float32 best_distance
 float32 path_length
 """
-  __slots__ = ['algorithm','name','pose_x','pose_y','yaw','initial_to_goal_distance','current_to_goal_distance','path_length']
-  _slot_types = ['uint8','string','float32','float32','float32','float32','float32','float32']
+  __slots__ = ['algorithm','name','pose_x','pose_y','yaw','initial_to_goal_distance','current_to_goal_distance','best_distance','path_length']
+  _slot_types = ['uint8','string','float32','float32','float32','float32','float32','float32','float32']
 
   def __init__(self, *args, **kwds):
     """
@@ -30,7 +31,7 @@ float32 path_length
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       algorithm,name,pose_x,pose_y,yaw,initial_to_goal_distance,current_to_goal_distance,path_length
+       algorithm,name,pose_x,pose_y,yaw,initial_to_goal_distance,current_to_goal_distance,best_distance,path_length
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -53,6 +54,8 @@ float32 path_length
         self.initial_to_goal_distance = 0.
       if self.current_to_goal_distance is None:
         self.current_to_goal_distance = 0.
+      if self.best_distance is None:
+        self.best_distance = 0.
       if self.path_length is None:
         self.path_length = 0.
     else:
@@ -63,6 +66,7 @@ float32 path_length
       self.yaw = 0.
       self.initial_to_goal_distance = 0.
       self.current_to_goal_distance = 0.
+      self.best_distance = 0.
       self.path_length = 0.
 
   def _get_types(self):
@@ -85,7 +89,7 @@ float32 path_length
         length = len(_x)
       buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
-      buff.write(_get_struct_6f().pack(_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.path_length))
+      buff.write(_get_struct_7f().pack(_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.best_distance, _x.path_length))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -110,8 +114,8 @@ float32 path_length
         self.name = str[start:end]
       _x = self
       start = end
-      end += 24
-      (_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.path_length,) = _get_struct_6f().unpack(str[start:end])
+      end += 28
+      (_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.best_distance, _x.path_length,) = _get_struct_7f().unpack(str[start:end])
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e) #most likely buffer underfill
@@ -132,7 +136,7 @@ float32 path_length
         length = len(_x)
       buff.write(struct.pack('<I%ss'%length, length, _x))
       _x = self
-      buff.write(_get_struct_6f().pack(_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.path_length))
+      buff.write(_get_struct_7f().pack(_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.best_distance, _x.path_length))
     except struct.error as se: self._check_types(struct.error("%s: '%s' when writing '%s'" % (type(se), str(se), str(locals().get('_x', self)))))
     except TypeError as te: self._check_types(ValueError("%s: '%s' when writing '%s'" % (type(te), str(te), str(locals().get('_x', self)))))
 
@@ -158,8 +162,8 @@ float32 path_length
         self.name = str[start:end]
       _x = self
       start = end
-      end += 24
-      (_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.path_length,) = _get_struct_6f().unpack(str[start:end])
+      end += 28
+      (_x.pose_x, _x.pose_y, _x.yaw, _x.initial_to_goal_distance, _x.current_to_goal_distance, _x.best_distance, _x.path_length,) = _get_struct_7f().unpack(str[start:end])
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e) #most likely buffer underfill
@@ -168,15 +172,15 @@ _struct_I = genpy.struct_I
 def _get_struct_I():
     global _struct_I
     return _struct_I
+_struct_7f = None
+def _get_struct_7f():
+    global _struct_7f
+    if _struct_7f is None:
+        _struct_7f = struct.Struct("<7f")
+    return _struct_7f
 _struct_B = None
 def _get_struct_B():
     global _struct_B
     if _struct_B is None:
         _struct_B = struct.Struct("<B")
     return _struct_B
-_struct_6f = None
-def _get_struct_6f():
-    global _struct_6f
-    if _struct_6f is None:
-        _struct_6f = struct.Struct("<6f")
-    return _struct_6f

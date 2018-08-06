@@ -6,6 +6,7 @@
 #include "math.h"
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/Point.h"
+#include "visualization_msgs/Marker.h"
 
 using namespace std;
 
@@ -161,16 +162,49 @@ bool isOnPendant(geometry_msgs::Point initial, geometry_msgs::Point goal, geomet
   return abs(m1 - m2) <= 0.05;
 }
 
-// Function that compares two numbers, it's used for checking the laser ray
-bool myfn(float i, float j) {
-  i = isnan(i) || isinf(i) ? 4 : (i > 4 ? 4 : (i < 0.15 ? 4 : i));
-  j = isnan(j) || isinf(i) ? 4 : (j > 4 ? 4 : (j < 0.15 ? 4 : j));
-  return i<j;
-}
 // Function that checks whether the value is not a number or it has a value of infinite
-float processRay(float val){
-  return isnan(val) || isinf(val) ? 4 : val;
+// To avoid problems with the laser value presition
+float processRay(float value, float maxRange){
+  return isnan(value) || isinf(value) ? maxRange : (value > maxRange ? maxRange : (value < 0.15 ? maxRange : value));
 }
 
+// Function useful for detecting discontinuity points
+float processRaySimple(float value, float maxRange){
+  return isnan(value) || isinf(value) ? maxRange : value;
+}
+
+// Function that compares two numbers, it's used for checking the laser ray
+// 4 is the max laser range
+bool myfn(float i, float j) {
+  i = processRay(i, 4);
+  j = processRay(j, 4);
+  return i<j;
+}
+
+visualization_msgs::Marker createMarker(string frame_id, string ns, int id, int type, int action, geometry_msgs::Point p, geometry_msgs::Vector3 scale, std_msgs::ColorRGBA color){
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = frame_id;
+  marker.header.stamp = ros::Time();
+  marker.ns = ns;
+  marker.id = id;
+  marker.type = type;
+  marker.action = action;
+  marker.pose.position.x = p.x;
+  marker.pose.position.y = p.y;
+  marker.pose.position.z = p.z;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+  marker.scale.x = scale.x;
+  marker.scale.y = scale.y;
+  marker.scale.z = scale.z;
+  marker.color.a = color.a; // Don't forget to set the alpha!
+  marker.color.r = color.r;
+  marker.color.g = color.g;
+  marker.color.b = color.b;
+
+  return marker;
+}
 
 #endif // UTILS_H

@@ -23,9 +23,11 @@ enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 static int node_state_ = Waiting;
 
 enum States {FindBoundary, TurnLeft, FollowBoundary, TurnLeftOnly};
-static int state_ = FindBoundary;
+static int state_ = TurnLeftOnly;
 static int count_state_time = 0; // Seconds the robot is in a state
 static int count_loop = 0;
+
+static float max_laser_range = 4.0;
 static float dist_detection = 0.4;
 
 static map<string, float> regions_ = {
@@ -116,15 +118,15 @@ void takeActionSimple(){
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   // Check the utils.h file for the functions processRay and myfn
   regions_["right"] = *min_element(begin(msg->ranges), begin(msg->ranges)+200, myfn);
-  regions_["right"] = processRay(regions_["right"]);
+  regions_["right"] = processRay(regions_["right"], max_laser_range);
   regions_["front_right"] = *min_element(begin(msg->ranges)+200, begin(msg->ranges)+310, myfn);
-  regions_["front_right"] = processRay(regions_["front_right"]);
+  regions_["front_right"] = processRay(regions_["front_right"], max_laser_range);
   regions_["front"] = *min_element(begin(msg->ranges)+310, begin(msg->ranges)+420, myfn);
-  regions_["front"] = processRay(regions_["front"]);
+  regions_["front"] = processRay(regions_["front"], max_laser_range);
   regions_["front_left"] = *min_element(begin(msg->ranges)+420, begin(msg->ranges)+530, myfn);
-  regions_["front_left"] = processRay(regions_["front_left"]);
+  regions_["front_left"] = processRay(regions_["front_left"], max_laser_range);
   regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges), myfn);
-  regions_["left"] = processRay(regions_["left"]);
+  regions_["left"] = processRay(regions_["left"], max_laser_range);
 
   isLaserReady = true;
 
@@ -214,7 +216,7 @@ void initNode(ros::NodeHandle& nh){
   node_state_ = Executing;
   isNodeInit = true;
   // Initialize state
-  changeState(FindBoundary);
+  changeState(TurnLeftOnly);
 }
 
 

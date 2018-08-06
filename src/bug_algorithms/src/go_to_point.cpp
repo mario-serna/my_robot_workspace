@@ -23,6 +23,8 @@ static int node_state_ = Waiting;
 
 enum States {FixYaw, GoStraight, Done};
 static int state_ = FixYaw;
+
+static float max_laser_range = 4.0;
 static float yaw_ = 0;
 static geometry_msgs::Point position_ = geometry_msgs::Point();
 static geometry_msgs::Point desired_position_ = geometry_msgs::Point();

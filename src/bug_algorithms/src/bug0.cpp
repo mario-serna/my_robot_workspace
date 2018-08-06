@@ -15,6 +15,7 @@
 #include "bug_algorithms/bugSwitch.h"
 #include "bug_algorithms/nodeState.h"
 #include "bug_algorithms/algorithmState.h"
+#include "visualization_msgs/Marker.h"
 
 static int rate_hz = 20;
 static bool isSimulation = true;
@@ -34,6 +35,7 @@ static int count_state_time = 0; // Seconds the robot is in a state
 static int count_loop = 0;
 static int count_tolerance = 0; // Seconds the robot must wait
 
+static float max_laser_range = 4.0;
 static float yaw_ = 0;
 static float yaw_error_allowed = 5 * (PI/180); // 5 degrees
 static geometry_msgs::Point position_ = geometry_msgs::Point();
@@ -49,12 +51,22 @@ static float dist_precision_ = 0.3;
 static float dist_detection = 0.4;
 static float initial_to_goal_distance = 0.0;
 static float current_to_goal_distance = 0.0;
+static float best_distance = 0.0;
 
 static bool reverseCriterion;
 
 static bool isPreviousReady = false;
 static geometry_msgs::Point previous_position_ = geometry_msgs::Point();
 static float path_length = 0.0;
+
+// Marker variables
+static bool pubMarker = false;
+static bool isPathMarkerReady = false;
+static visualization_msgs::Marker start_marker = visualization_msgs::Marker();
+static visualization_msgs::Marker goal_marker = visualization_msgs::Marker();
+static visualization_msgs::Marker path_marker = visualization_msgs::Marker();
+static visualization_msgs::Marker path_marker_go_to = visualization_msgs::Marker();
+static visualization_msgs::Marker path_marker_follow = visualization_msgs::Marker();
 
 static map<string, float> regions_ = {
   {"right",0},
@@ -83,6 +95,7 @@ static map<int, string> state_desc_ = {
 geometry_msgs::Twist twist_msg;
 ros::Publisher node_state_pub;
 ros::Publisher algorithm_state_pub;
+ros::Publisher marker_pub;
 ros::Subscriber node_state_sub;
 ros::Subscriber odom_sub;
 ros::Subscriber laser_sub;
@@ -143,6 +156,16 @@ void nodeStateCallback(const bug_algorithms::nodeState::ConstPtr& msg){
   nodeStateGlobal.node_state_desc = msg->node_state_desc;
 }
 
+void publishPathMarkers(){
+  if(isPathMarkerReady){
+    marker_pub.publish(start_marker);
+    marker_pub.publish(goal_marker);
+    marker_pub.publish(path_marker);
+    marker_pub.publish(path_marker_go_to);
+    marker_pub.publish(path_marker_follow);
+  }
+}
+
 void odomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   //subscriberNotify(node_name);
   position_ = msg->pose.pose.position;
@@ -183,22 +206,37 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   a_state.yaw = yaw_;
   a_state.initial_to_goal_distance = initial_to_goal_distance;
   a_state.current_to_goal_distance = current_to_goal_distance;
+  a_state.best_distance = best_distance;
   a_state.path_length = path_length;
   algorithm_state_pub.publish(a_state);
+
+  if(pubMarker && isPathMarkerReady){
+    pubMarker = false;
+    // Publishing path marker
+    path_marker.points.push_back(position_);
+    marker_pub.publish(path_marker);
+    if(state_ == GoToPoint){
+      path_marker_go_to.points.push_back(position_);
+      marker_pub.publish(path_marker_go_to);
+    } else{
+      path_marker_follow.points.push_back(position_);
+      marker_pub.publish(path_marker_follow);
+    }
+  }
 }
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   // Check the utils.h file for the functions processRay and myfn
   regions_["right"] = *min_element(begin(msg->ranges), begin(msg->ranges)+200, myfn);
-  regions_["right"] = processRay(regions_["right"]);
+  regions_["right"] = processRay(regions_["right"], max_laser_range);
   regions_["front_right"] = *min_element(begin(msg->ranges)+200, begin(msg->ranges)+310, myfn);
-  regions_["front_right"] = processRay(regions_["front_right"]);
+  regions_["front_right"] = processRay(regions_["front_right"], max_laser_range);
   regions_["front"] = *min_element(begin(msg->ranges)+310, begin(msg->ranges)+420, myfn);
-  regions_["front"] = processRay(regions_["front"]);
+  regions_["front"] = processRay(regions_["front"], max_laser_range);
   regions_["front_left"] = *min_element(begin(msg->ranges)+420, begin(msg->ranges)+530, myfn);
-  regions_["front_left"] = processRay(regions_["front_left"]);
+  regions_["front_left"] = processRay(regions_["front_left"], max_laser_range);
   regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges), myfn);
-  regions_["left"] = processRay(regions_["left"]);
+  regions_["left"] = processRay(regions_["left"], max_laser_range);
 
   //ROS_INFO("IMP\nRight: %f \nFront_right: %f \nFront: %f \nFront_left: %f \nLeft: %f",
   //         regions_["right"], regions_["front_right"], regions_["front"], regions_["front_left"], regions_["left"]);
@@ -257,6 +295,57 @@ void lostObstacleCallback(const std_msgs::Bool::ConstPtr& msg){
   }
 }
 
+void initMarkers(){
+  string frame_id = isSimulation ? "odom" : "RosAria/pose" ;
+
+  // Publishing initial and goal markers
+  geometry_msgs::Vector3 scale = geometry_msgs::Vector3();
+  std_msgs::ColorRGBA color = std_msgs::ColorRGBA();
+  scale.x = 0.3;
+  scale.y = 0.3;
+  scale.z = 0.1;
+  color.a = 1.0;
+  color.r = 0.0;
+  color.g = 0.0;
+  color.b = 1.0;
+  // Deleting existing markers
+  //visualization_msgs::Marker m = createMarker(frame_id, node_name, 0, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::DELETEALL, initial_position_, scale, color);
+  //marker_pub.publish(m);
+  start_marker = createMarker(frame_id, node_name, 1, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, initial_position_, scale, color);
+  marker_pub.publish(start_marker);
+  color.r = 1.0;
+  color.g = 0.0;
+  color.b = 0.0;
+  goal_marker = createMarker(frame_id, node_name, 2, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, desired_position_, scale, color);
+  marker_pub.publish(goal_marker);
+
+  // For line strip only scale.x is used and it controls the width of the line segments
+  scale.x = 0.1;
+  color.a = 1.0;
+  color.r = 0.0;
+  color.g = 1.0;
+  color.b = 0.0;
+  path_marker = createMarker(frame_id, node_name, 3, visualization_msgs::Marker::LINE_STRIP, visualization_msgs::Marker::ADD, geometry_msgs::Point(), scale, color);
+  // Point of reference
+  geometry_msgs::Point p = geometry_msgs::Point();
+  p.x = 0;
+  p.y = 0;
+  p.z = 0.1;
+  scale.x = 0.1;
+  scale.y = 0.1;
+  scale.z = 0.1;
+  color.r = 0.0;
+  color.g = 0.0;
+  color.b = 1.0;
+  path_marker_go_to = createMarker(frame_id, node_name, 4, visualization_msgs::Marker::CUBE_LIST, visualization_msgs::Marker::ADD, p, scale, color);
+  color.r = 1.0;
+  color.g = 0.0;
+  color.b = 0.0;
+  path_marker_follow = createMarker(frame_id, node_name, 5, visualization_msgs::Marker::CUBE_LIST, visualization_msgs::Marker::ADD, p, scale, color);
+
+  isPathMarkerReady = true;
+}
+
 void initBug(ros::NodeHandle& nh){
   ROS_INFO("Initializing %s Node", node_name.c_str());
 
@@ -279,6 +368,9 @@ void initBug(ros::NodeHandle& nh){
   // Path length variables
   isPreviousReady = false;
   path_length = 0;
+
+  // Marker
+  isPathMarkerReady = false;
 
   if(isSimulation){
     cout << node_name << " | Using GazeboSim topics\n";
@@ -310,6 +402,9 @@ void initBug(ros::NodeHandle& nh){
 
   initial_to_goal_distance = getDistance(initial_position_, desired_position_);
   current_to_goal_distance = initial_to_goal_distance;
+  best_distance = current_to_goal_distance;
+
+  initMarkers();
 
   // Subscribers are ready
   areSubsDown = false;
@@ -342,6 +437,10 @@ void pauseBug(bool isPause){
 
 void bugConditions(){
   current_to_goal_distance = getDistance(position_, desired_position_);
+
+  if(current_to_goal_distance+0.1 < best_distance){
+    best_distance = current_to_goal_distance;
+  }
 
   if(state_ == GoToPoint){
     float desired_yaw, err_yaw;
@@ -407,6 +506,7 @@ int main(int argc, char **argv)
 
   node_state_pub = nh.advertise<bug_algorithms::nodeState>("bugServer/bugNodeStateInternal", rate_hz);
   algorithm_state_pub = nh.advertise<bug_algorithms::algorithmState>("bugServer/algorithmState", rate_hz);
+  marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", rate_hz);
 
   ros::ServiceServer service = nh.advertiseService("bugServer/bug0Switch", bugSwitch);
 
@@ -448,6 +548,8 @@ int main(int argc, char **argv)
       count_state_time++;
       count_tolerance++;
       count_loop = 0;
+      pubMarker = true;
+      publishPathMarkers();
     }
   }
 

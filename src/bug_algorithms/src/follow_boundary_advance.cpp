@@ -24,11 +24,12 @@ enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 static int node_state_ = Waiting;
 
 enum States {FindBoundary, TurnLeft, FollowBoundary, TurnLeftOnly};
-static int state_ = FindBoundary;
+static int state_ = TurnLeftOnly;
 static int count_state_time = 0; // Seconds the robot is in a state
 static int count_loop = 0;
-static float dist_detection = 0.5;
+static float dist_detection = 0.4;
 
+static float max_laser_range = 4.0;
 static float yaw_ = 0;
 static float yaw_error_allowed = 5 * (PI/180); // 5 degrees
 static geometry_msgs::Point position_ = geometry_msgs::Point();
@@ -137,6 +138,7 @@ void takeActionSimple(){
       }
     } else{
       rCrit = isLeft ? regions_["right"]: regions_["left"];
+      // Turn left only until the side region is close to the obstacle
       if(rCrit > dist_detection){
         changeState(TurnLeftOnly);
       } else{
@@ -157,9 +159,9 @@ void takeActionSimple(){
   }
 
   if(!isReverseActive){
-    if((r1 > 0.15 && r1 < dist_detection) ||
+    if((r1 < dist_detection) ||
        (regions_["front"] <= dist_detection) ||
-       (r2 > 0.15 && r2 < dist_detection-0.1)){
+       (r2 < dist_detection-0.1)){
       if((regions_["front"] > dist_detection+0.1) && (r3 > 0.3)){
         changeState(TurnLeft);
       } else{
@@ -167,7 +169,7 @@ void takeActionSimple(){
       }
     } else if(r3 > dist_detection){
       changeState(FindBoundary);
-    } else if(r3 > 0.4 && r3 < dist_detection+0.05){
+    } else if(r3 > 0.3 && r3 < dist_detection+0.05){
       changeState(FollowBoundary);
     } else{
       changeState(TurnLeftOnly);
@@ -197,15 +199,15 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   // Check the utils.h file for the functions processRay and myfn
   regions_["right"] = *min_element(begin(msg->ranges), begin(msg->ranges)+200, myfn);
-  regions_["right"] = processRay(regions_["right"]);
+  regions_["right"] = processRay(regions_["right"], max_laser_range);
   regions_["front_right"] = *min_element(begin(msg->ranges)+200, begin(msg->ranges)+310, myfn);
-  regions_["front_right"] = processRay(regions_["front_right"]);
+  regions_["front_right"] = processRay(regions_["front_right"], max_laser_range);
   regions_["front"] = *min_element(begin(msg->ranges)+310, begin(msg->ranges)+420, myfn);
-  regions_["front"] = processRay(regions_["front"]);
+  regions_["front"] = processRay(regions_["front"], max_laser_range);
   regions_["front_left"] = *min_element(begin(msg->ranges)+420, begin(msg->ranges)+530, myfn);
-  regions_["front_left"] = processRay(regions_["front_left"]);
+  regions_["front_left"] = processRay(regions_["front_left"], max_laser_range);
   regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges), myfn);
-  regions_["left"] = processRay(regions_["left"]);
+  regions_["left"] = processRay(regions_["left"], max_laser_range);
 
   isLaserReady = true;
 
@@ -213,36 +215,6 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
 
   //ROS_INFO("IMP\nRight: %f \nFront_right: %f \nFront: %f \nFront_left: %f \nLeft: %f",
   //         regions_["right"], regions_["front_right"], regions_["front"], regions_["front_left"], regions_["left"]);
-}
-
-void laserCallbackDef(const sensor_msgs::LaserScan::ConstPtr& msg){
-  //subscriberNotify(node_name);
-  regions_["right"] = *min_element(begin(msg->ranges), begin(msg->ranges)+200);
-  regions_["right"] = isnan(regions_["right"]) ? 4 : regions_["right"];
-  regions_["right"] = regions_["right"] > 4 ? 4 : regions_["right"];
-
-  regions_["front_right"] = *min_element(begin(msg->ranges)+200, begin(msg->ranges)+310);
-  regions_["front_right"] = isnan(regions_["front_right"]) ? 4 : regions_["front_right"];
-  regions_["front_right"] = regions_["front_right"] > 4 ? 4 : regions_["front_right"];
-
-  regions_["front"] = *min_element(begin(msg->ranges)+310, begin(msg->ranges)+420);
-  regions_["front"] = isnan(regions_["front"]) ? 4 : regions_["front"];
-  regions_["front"] = regions_["front"] > 4 ? 4 : regions_["front"];
-
-  regions_["front_left"] = *min_element(begin(msg->ranges)+420, begin(msg->ranges)+530);
-  regions_["front_left"] = isnan(regions_["front_left"]) ? 4 : regions_["front_left"];
-  regions_["front_left"] = regions_["front_left"] > 4 ? 4 : regions_["front_left"];
-
-  regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges));
-  regions_["left"] = isnan(regions_["left"]) ? 4 : regions_["left"];
-  regions_["left"] = regions_["left"] > 4 ? 4 : regions_["left"];
-
-  isLaserReady = true;
-
-  takeActionSimple();
-
-  ROS_INFO("DEF\nRight: %f \nFront_right: %f \nFront: %f \nFront_left: %f \nLeft: %f",
-           regions_["right"], regions_["front_right"], regions_["front"], regions_["front_left"], regions_["left"]);
 }
 
 void chooseDirection(){
@@ -366,7 +338,7 @@ void initNode(ros::NodeHandle& nh){
   chooseDirection();
 
   // Initialize state
-  changeState(FindBoundary);
+  changeState(TurnLeftOnly);
 }
 
 

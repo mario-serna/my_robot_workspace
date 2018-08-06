@@ -24,6 +24,8 @@ static int node_state_ = Waiting;
 
 enum States {FixYaw, GoStraight, MoveAvoiding, Done};
 static int state_ = FixYaw;
+
+static float max_laser_range = 4.0;
 static float yaw_ = 0;
 static geometry_msgs::Point position_ = geometry_msgs::Point();
 static geometry_msgs::Point desired_position_ = geometry_msgs::Point();
@@ -98,15 +100,15 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   // Check the utils.h file for the functions processRay and myfn
   regions_["right"] = *min_element(begin(msg->ranges), begin(msg->ranges)+200, myfn);
-  regions_["right"] = processRay(regions_["right"]);
+  regions_["right"] = processRay(regions_["right"], max_laser_range);
   regions_["front_right"] = *min_element(begin(msg->ranges)+200, begin(msg->ranges)+310, myfn);
-  regions_["front_right"] = processRay(regions_["front_right"]);
+  regions_["front_right"] = processRay(regions_["front_right"], max_laser_range);
   regions_["front"] = *min_element(begin(msg->ranges)+310, begin(msg->ranges)+420, myfn);
-  regions_["front"] = processRay(regions_["front"]);
+  regions_["front"] = processRay(regions_["front"], max_laser_range);
   regions_["front_left"] = *min_element(begin(msg->ranges)+420, begin(msg->ranges)+530, myfn);
-  regions_["front_left"] = processRay(regions_["front_left"]);
+  regions_["front_left"] = processRay(regions_["front_left"], max_laser_range);
   regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges), myfn);
-  regions_["left"] = processRay(regions_["left"]);
+  regions_["left"] = processRay(regions_["left"], max_laser_range);
 
   isLaserReady = true;
 
@@ -142,66 +144,7 @@ void waitLaser(){
     ros::spinOnce();
   }
 }
-/*
-// Following boundary actions
-void chooseDirection(){
-  //cout << "Left: " << regions_["front_left"] << " | Right: " << regions_["front_right"] << endl;
-  if(regions_["front_left"] == regions_["front_right"]){
-    isLeft = regions_["left"] < regions_["right"] ? false : true;
-  } else if(regions_["front_left"] < regions_["front_right"]){
-    isLeft = false;
-    //cout << "Choose direction: Right" << endl;
-  } else{
-    isLeft = true;
-    //cout << "Choose direction: Left" << endl;
-  }
-}
 
-void findBoundary(){
-  twist_msg = geometry_msgs::Twist();
-
-  if(angular_vel_ > 0.3){
-    twist_msg.linear.x = 0.15;
-    twist_msg.angular.z = -0.6;
-  }
-  else{
-    twist_msg.linear.x = linear_vel_*0.5;
-    twist_msg.angular.z = -(angular_vel_+(linear_vel_*0.5));
-  }
-
-  twist_msg.angular.z = (isLeft ? twist_msg.angular.z : -twist_msg.angular.z);
-  vel_pub.publish(twist_msg);
-}
-
-void turnLeft(){
-  twist_msg = geometry_msgs::Twist();
-  twist_msg.linear.x = 0.1;
-  if(angular_vel_ > 0.3)
-    twist_msg.angular.z = 0.3;
-  else
-    twist_msg.angular.z = angular_vel_;
-  twist_msg.angular.z = (isLeft ? twist_msg.angular.z : -twist_msg.angular.z);
-  vel_pub.publish(twist_msg);
-}
-
-void turnLeftOnly(){
-  twist_msg = geometry_msgs::Twist();
-  twist_msg.linear.x = 0.0;
-  twist_msg.angular.z = angular_vel_;
-  twist_msg.angular.z = (isLeft ? twist_msg.angular.z : -twist_msg.angular.z);
-  vel_pub.publish(twist_msg);
-}
-
-void followBoundary(){
-  twist_msg = geometry_msgs::Twist();
-  if(linear_vel_ > 0.3)
-    twist_msg.linear.x = 0.4;
-  else
-    twist_msg.linear.x = linear_vel_;
-  twist_msg.angular.z = 0.0;
-  vel_pub.publish(twist_msg);
-}
-*/
 void fixYaw(geometry_msgs::Point des_position, float precision){
   float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
   float err_yaw = normalizeAngle(desired_yaw - yaw_);
@@ -223,34 +166,7 @@ void fixYaw(geometry_msgs::Point des_position, float precision){
     changeState(GoStraight);
   }
 }
-/*
-void adjustYaw(geometry_msgs::Point des_position, float precision){
-  float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
-  float err_yaw = normalizeAngle(desired_yaw - yaw_);
 
-  //ROS_INFO("Yaw error: %f", err_yaw);
-
-  twist_msg = geometry_msgs::Twist();
-
-  string dir = isLeft ? "left" : "right";
-
-  if(abs(desired_position_.x - des_position.x) == 0 && abs(desired_position_.y - des_position.y) == 0){
-    changeState(FixYaw);
-    return;
-  }
-
-  if(regions_[dir] > dist_detection){
-    findBoundary();
-  } else if(abs(err_yaw) > yaw_precision_ && abs(err_yaw) < yaw_precision_*precision){
-    twist_msg.linear.x = linear_vel_;
-    twist_msg.angular.z = (err_yaw > 0 ? 0.3 : -0.3);
-    vel_pub.publish(twist_msg);
-  } else if(abs(err_yaw) > yaw_precision_){
-    twist_msg.angular.z = (err_yaw > 0 ? angular_vel_ : -angular_vel_);
-    vel_pub.publish(twist_msg);
-  }
-}
-*/
 void goStraightAhead(geometry_msgs::Point des_position){
   float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
   float err_yaw = desired_yaw - yaw_;
@@ -273,58 +189,6 @@ void goStraightAhead(geometry_msgs::Point des_position){
     changeState(FixYaw);
   }
 }
-/*
-void moveToGoalAvoiding(geometry_msgs::Point des_position){
-  float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
-  float err_yaw = desired_yaw - yaw_;
-  float err_pos = getDistance(position_, des_position);
-  float r1,r2,r3,rCrit;
-
-  chooseDirection();
-
-  string direction = isLeft ? "Left" : "Right";
-
-  if(isLeft){
-    r1 = regions_["front_right"];
-    r2 = regions_["front_left"];
-    r3 = regions_["right"];
-  } else{
-    r1 = regions_["front_left"];
-    r2 = regions_["front_right"];
-    r3 = regions_["left"];
-  }
-
-  if((r1 < dist_detection) ||
-     (regions_["front"] <= dist_detection) ||
-     (r2 < dist_detection-0.1)){
-    if((regions_["front"] > dist_detection+0.1) && (r3 > 0.3)){
-      turnLeft();
-      cout << "Turn " << direction << endl;
-    } else{
-      turnLeftOnly();
-      cout << "Turn "<< direction <<" Only" << endl;
-    }
-  } else if(r3 > 0.3 && r3 < dist_detection){
-    followBoundary();
-    cout << "Follow boundary" << endl;
-  } else if(abs(err_yaw) > yaw_precision_){
-    fixYaw(des_position, 10);
-    cout << "Fix yaw" << endl;
-  } else{
-    twist_msg = geometry_msgs::Twist();
-    twist_msg.linear.x = linear_vel_;
-    //twist_msg.angular.z = (err_yaw > 0 ? angular_vel_ : -angular_vel_);
-    vel_pub.publish(twist_msg);
-    cout << "Go straight" << endl;
-  }
-
-  if(err_pos < dist_precision_){
-    ROS_INFO("Position: %f | %f", position_.x, position_.y);
-    ROS_INFO("Desired: %f | %f", des_position.x, des_position.y);
-    ROS_INFO("Position error: %f", err_pos);
-    changeState(Done);
-  }
-}*/
 
 void stop(){
   twist_msg = geometry_msgs::Twist();
@@ -345,6 +209,9 @@ void initNode(ros::NodeHandle& nh){
   nh.getParam("/desired_x", desired_position_.x);
   nh.getParam("/desired_y", desired_position_.y);
   nh.getParam("/velocity", linear_vel_);
+
+  ROS_INFO("Desired position: %f | %f", desired_position_.x, desired_position_.y);
+  target_position_ = desired_position_;
 
   angular_vel_ = linear_vel_+0.1;
   isPoseReady = false;
@@ -400,8 +267,6 @@ int main(int argc, char **argv)
         fixYaw(target_position_,3);
       else if(state_ == GoStraight)
         goStraightAhead(target_position_);
-      /*else if(state_ == MoveAvoiding)
-        moveToGoalAvoiding(target_position_);*/
       else if(state_ == Done){
         stop();
         node_state_ = Waiting;

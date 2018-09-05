@@ -7,6 +7,8 @@
 #include "geometry_msgs/Pose2D.h"
 #include "geometry_msgs/Point.h"
 #include "visualization_msgs/Marker.h"
+#include "sstream"
+#include "iomanip"
 
 using namespace std;
 
@@ -14,6 +16,16 @@ const double PI = 3.1415926;
 
 // 1 = upward | -1 = downward
 static int robot_direction = 1;
+
+template <typename T>
+std::string to_string_with_precision(const T a_value, const int n = 6)
+{
+  // Code from: https://stackoverflow.com/questions/16605967/set-precision-of-stdto-string-when-converting-floating-point-values
+
+    std::ostringstream out;
+    out << std::setprecision(n) << a_value;
+    return out.str();
+}
 
 double degrees2radians(double angle_in_degrees){
   return angle_in_degrees * PI / 180.0;

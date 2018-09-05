@@ -122,7 +122,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 			</ray>
 			<plugin name="gazebo_ros_head_hokuyo_controller" filename="libgazebo_ros_laser.so">
 				<topicName>${ns}/laser/scan</topicName>
-				<frameName>lms100</frameName>
+				<frameName>odom</frameName>
 			</plugin>
 		</sensor>
 	</gazebo>

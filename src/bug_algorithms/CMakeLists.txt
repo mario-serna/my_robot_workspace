@@ -157,9 +157,6 @@ include_directories(
 add_executable(bugServer src/bugServer.cpp)
 target_link_libraries(bugServer ${catkin_LIBRARIES})
 
-add_executable(bug src/bug.cpp)
-target_link_libraries(bug ${catkin_LIBRARIES})
-
 add_executable(bug0 src/bug0.cpp)
 target_link_libraries(bug0 ${catkin_LIBRARIES})
 
@@ -172,20 +169,26 @@ target_link_libraries(bug2 ${catkin_LIBRARIES})
 add_executable(distBug src/distBug.cpp)
 target_link_libraries(distBug ${catkin_LIBRARIES})
 
-add_executable(tangetBug src/tangetBug.cpp)
-target_link_libraries(tangetBug ${catkin_LIBRARIES})
+add_executable(iBug src/iBug.cpp)
+target_link_libraries(iBug ${catkin_LIBRARIES})
+
+add_executable(intelligentBug src/intelligentBug.cpp)
+target_link_libraries(intelligentBug ${catkin_LIBRARIES})
+
+add_executable(tangentBug src/tangentBug.cpp)
+target_link_libraries(tangentBug ${catkin_LIBRARIES})
 
 add_executable(go_to_point src/go_to_point.cpp)
 target_link_libraries(go_to_point ${catkin_LIBRARIES})
 
-add_executable(go_to_point_advance src/go_to_point_advance.cpp)
-target_link_libraries(go_to_point_advance ${catkin_LIBRARIES})
+add_executable(go_to_point_advanced src/go_to_point_advanced.cpp)
+target_link_libraries(go_to_point_advanced ${catkin_LIBRARIES})
 
 add_executable(follow_boundary src/follow_boundary.cpp)
 target_link_libraries(follow_boundary ${catkin_LIBRARIES})
 
-add_executable(follow_boundary_advance src/follow_boundary_advance.cpp)
-target_link_libraries(follow_boundary_advance ${catkin_LIBRARIES})
+add_executable(follow_boundary_advanced src/follow_boundary_advanced.cpp)
+target_link_libraries(follow_boundary_advanced ${catkin_LIBRARIES})
 
 
 #############

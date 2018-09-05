@@ -1,0 +1,7 @@
+{
+    "python.linting.pylintEnabled": false,
+    "python.autoComplete.extraPaths": [
+        "/home/mario/catkin_ws/devel/lib/python2.7/dist-packages",
+        "/opt/ros/kinetic/lib/python2.7/dist-packages"
+    ]
+}

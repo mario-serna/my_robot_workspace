@@ -28,7 +28,7 @@ static map<int, string> algorithm = {
   {Bug1, "bug1Switch"},
   {Bug2, "bug2Switch"},
   {DistBug, "distBugSwitch"},
-  {IntelBug, "intelBugSwitch"},
+  {IntelBug, "intelligentBugSwitch"},
   {IBug, "iBugSwitch"},
   {TangetBug, "tangetBugSwitch"},
   {PointBug, "pointBugSwitch"},
@@ -51,8 +51,10 @@ void nodeStateCallback(const bug_algorithms::nodeState::ConstPtr& msg)
   nodeGlobalState.algorithm = msg->algorithm;
   nodeGlobalState.bug_state = msg->bug_state;
   nodeGlobalState.bug_state_desc = msg->bug_state_desc;
+  nodeGlobalState.bug_state_time = msg->bug_state_time;
   nodeGlobalState.node_state = msg->node_state;
   nodeGlobalState.node_state_desc = msg->node_state_desc;
+  nodeGlobalState.node_state_time = msg->node_state_time;
 
   cout << "Node state: " << nodeGlobalState.node_state_desc << endl;
 }
@@ -114,8 +116,10 @@ bool initializeBugAlgorithm(bug_algorithms::bugServiceRequest& request, bug_algo
     nodeGlobalState.algorithm = request.algorithm;
     nodeGlobalState.node_state = Initializing;
     nodeGlobalState.node_state_desc = node_state_desc[Initializing];
+    nodeGlobalState.node_state_time = 0;
     nodeGlobalState.bug_state = 0;
     nodeGlobalState.bug_state_desc = "";
+    nodeGlobalState.bug_state_time = 0;
 
     node_state_pub.publish(nodeGlobalState);
     ros::spinOnce();

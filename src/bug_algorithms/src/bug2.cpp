@@ -20,11 +20,15 @@
 static int rate_hz = 20;
 static bool isSimulation = true;
 static bool isPoseReady = false;
+static bool isLaserReady = false;
 static bool areSubsDown = true;
 static float linear_vel_, angular_vel_;
 static bug_algorithms::nodeState nodeStateGlobal;
 static string node_name = "bug2";
 static int algorithm_id = 2;
+static float node_state_time;
+static float state_time;
+static ros::Time previous_time;
 
 enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 static int node_state_ = Waiting;
@@ -61,6 +65,9 @@ static float path_length = 0.0;
 // Marker variables
 static bool pubMarker = false;
 static bool isPathMarkerReady = false;
+static visualization_msgs::Marker start_text_marker = visualization_msgs::Marker();
+static visualization_msgs::Marker goal_text_marker = visualization_msgs::Marker();
+static visualization_msgs::Marker total_path_text_marker = visualization_msgs::Marker();
 static visualization_msgs::Marker start_marker = visualization_msgs::Marker();
 static visualization_msgs::Marker goal_marker = visualization_msgs::Marker();
 static visualization_msgs::Marker path_marker = visualization_msgs::Marker();
@@ -116,6 +123,8 @@ bool bugSwitch(bug_algorithms::bugSwitchRequest& request, bug_algorithms::bugSwi
 
   if(node_state_ == Waiting && request.state == Initializing){
     node_state_ = request.state;
+  } else if(node_state_ == Initializing && request.state == Stopping){
+    node_state_ = request.state;
   } else if(node_state_ == Executing && (request.state == Pause || request.state == Stopping)){
     node_state_ = request.state;
   } else if(node_state_ == Pause && (request.state == Executing || request.state == Stopping)){
@@ -140,8 +149,10 @@ void publishNodeState(){
   n.algorithm = algorithm_id;
   n.node_state = node_state_;
   n.node_state_desc = node_state_desc[node_state_];
+  n.node_state_time = node_state_time;
   n.bug_state = state_;
   n.bug_state_desc = state_desc_[state_];
+  n.bug_state_time = state_time;
 
   node_state_pub.publish(n);
 }
@@ -150,12 +161,18 @@ void nodeStateCallback(const bug_algorithms::nodeState::ConstPtr& msg){
   nodeStateGlobal.algorithm = msg->algorithm;
   nodeStateGlobal.bug_state = msg->bug_state;
   nodeStateGlobal.bug_state_desc = msg->bug_state_desc;
+  nodeStateGlobal.bug_state_time = msg->bug_state_time;
   nodeStateGlobal.node_state = msg->node_state;
   nodeStateGlobal.node_state_desc = msg->node_state_desc;
+  nodeStateGlobal.node_state_time = msg->node_state_time;
 }
 
 void publishPathMarkers(){
   if(isPathMarkerReady){
+    marker_pub.publish(start_text_marker);
+    marker_pub.publish(goal_text_marker);
+    total_path_text_marker.text = "P(" + to_string_with_precision(path_length, 3) + "m)";
+    marker_pub.publish(total_path_text_marker);
     marker_pub.publish(start_marker);
     marker_pub.publish(goal_marker);
     marker_pub.publish(path_marker);
@@ -206,6 +223,10 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg){
   a_state.current_to_goal_distance = current_to_goal_distance;
   a_state.best_distance = best_distance;
   a_state.path_length = path_length;
+  if(node_state_ == Initializing)
+    a_state.time = 0;
+  else
+    a_state.time = ros::Time::now().toSec() - previous_time.toSec();
   algorithm_state_pub.publish(a_state);
 
   if(pubMarker && isPathMarkerReady){
@@ -236,6 +257,8 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   regions_["left"] = *min_element(begin(msg->ranges)+530, end(msg->ranges), myfn);
   regions_["left"] = processRay(regions_["left"], max_laser_range);
 
+  isLaserReady = true;
+
   //ROS_INFO("IMP\nRight: %f \nFront_right: %f \nFront: %f \nFront_left: %f \nLeft: %f",
   //         regions_["right"], regions_["front_right"], regions_["front"], regions_["front_left"], regions_["left"]);
 }
@@ -246,11 +269,23 @@ void waitPose(){
   bool wait = true;
   ROS_INFO("Waiting for pose...");
 
-  while(!isPoseReady){
+  while(!isPoseReady && node_state_ == Initializing){
     ros::spinOnce();
   }
   ROS_INFO("Robot: %f, %f", position_.x, position_.y);
 
+}
+
+void waitLaser(){
+  /*This prevents the robot's pose from being 0*/
+
+  bool wait = true;
+  ROS_INFO("Waiting for laser...");
+
+  while(!isLaserReady && node_state_ == Initializing){
+    ros::spinOnce();
+  }
+  ROS_INFO("Laser ok!");
 }
 
 void changeState(int state){
@@ -259,6 +294,8 @@ void changeState(int state){
   count_state_time = 0;
   state_ = state;
   string s = state_desc_[state_];
+  state_time = ros::Time::now().toSec() - previous_time.toSec();
+  node_state_time = state_time;
   ROS_INFO("%s - State changed to: %s", node_name.c_str(), s.c_str());
 
   if(state_ == GoToPoint){
@@ -329,11 +366,35 @@ bool isOnPointRange(geometry_msgs::Point robot, geometry_msgs::Point point,float
 }
 
 void initMarkers(){
-  string frame_id = isSimulation ? "odom" : "RosAria/pose" ;
+  string frame_id = "odom" ;
 
   // Publishing initial and goal markers
   geometry_msgs::Vector3 scale = geometry_msgs::Vector3();
   std_msgs::ColorRGBA color = std_msgs::ColorRGBA();
+
+  // Only scale.z specifies the height of an uppercase 'A'
+  scale.z = 0.5;
+  color.a = 1.0;
+  color.r = 0.0;
+  color.g = 0.0;
+  color.b = 0.0;
+
+  start_text_marker = createMarker(frame_id, node_name, 1, visualization_msgs::Marker::TEXT_VIEW_FACING, visualization_msgs::Marker::ADD, initial_position_, scale, color);
+  start_text_marker.text = "S(" + to_string_with_precision(round(initial_position_.x, 1), 0) + " , " + to_string_with_precision(round(initial_position_.y, 1), 0) + ")";
+  start_text_marker.pose.position.y = start_text_marker.pose.position.y+0.5;
+  start_text_marker.pose.position.z = 0.5;
+  marker_pub.publish(start_text_marker);
+  goal_text_marker = createMarker(frame_id, node_name, 2, visualization_msgs::Marker::TEXT_VIEW_FACING, visualization_msgs::Marker::ADD, desired_position_, scale, color);
+  goal_text_marker.text = "G(" + to_string_with_precision(desired_position_.x, 1) + " , " + to_string_with_precision(desired_position_.y, 1) + ")";
+  goal_text_marker.pose.position.y = goal_text_marker.pose.position.y+0.5;
+  goal_text_marker.pose.position.z = 0.5;
+  marker_pub.publish(goal_text_marker);
+  total_path_text_marker = createMarker(frame_id, node_name, 8, visualization_msgs::Marker::TEXT_VIEW_FACING, visualization_msgs::Marker::ADD, initial_position_, scale, color);
+  total_path_text_marker.text = "P(" + to_string_with_precision(path_length, 3) + ")";
+  total_path_text_marker.pose.position.y = start_text_marker.pose.position.y+1;
+  total_path_text_marker.pose.position.z = 0.5;
+  marker_pub.publish(total_path_text_marker);
+
   scale.x = 0.3;
   scale.y = 0.3;
   scale.z = 0.1;
@@ -344,37 +405,38 @@ void initMarkers(){
   // Deleting existing markers
   //visualization_msgs::Marker m = createMarker(frame_id, node_name, 0, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::DELETEALL, initial_position_, scale, color);
   //marker_pub.publish(m);
-  start_marker = createMarker(frame_id, node_name, 1, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, initial_position_, scale, color);
+  start_marker = createMarker(frame_id, node_name, 3, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, initial_position_, scale, color);
   marker_pub.publish(start_marker);
   color.r = 1.0;
   color.g = 0.0;
   color.b = 0.0;
-  goal_marker = createMarker(frame_id, node_name, 2, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, desired_position_, scale, color);
+  goal_marker = createMarker(frame_id, node_name, 4, visualization_msgs::Marker::CUBE, visualization_msgs::Marker::ADD, desired_position_, scale, color);
   marker_pub.publish(goal_marker);
 
   // For line strip only scale.x is used and it controls the width of the line segments
-  scale.x = 0.1;
-  color.a = 1.0;
+  scale.x = 0.05;
+  color.a = 0.7;
   color.r = 0.0;
   color.g = 1.0;
   color.b = 0.0;
-  path_marker = createMarker(frame_id, node_name, 3, visualization_msgs::Marker::LINE_STRIP, visualization_msgs::Marker::ADD, geometry_msgs::Point(), scale, color);
+  path_marker = createMarker(frame_id, node_name, 5, visualization_msgs::Marker::LINE_STRIP, visualization_msgs::Marker::ADD, geometry_msgs::Point(), scale, color);
   // Point of reference
   geometry_msgs::Point p = geometry_msgs::Point();
   p.x = 0;
   p.y = 0;
-  p.z = 0.1;
+  p.z = 0.05;
   scale.x = 0.1;
   scale.y = 0.1;
   scale.z = 0.1;
+  color.a = 1.0;
   color.r = 0.0;
   color.g = 0.0;
   color.b = 1.0;
-  path_marker_go_to = createMarker(frame_id, node_name, 4, visualization_msgs::Marker::CUBE_LIST, visualization_msgs::Marker::ADD, p, scale, color);
+  path_marker_go_to = createMarker(frame_id, node_name, 6, visualization_msgs::Marker::POINTS, visualization_msgs::Marker::ADD, p, scale, color);
   color.r = 1.0;
   color.g = 0.0;
   color.b = 0.0;
-  path_marker_follow = createMarker(frame_id, node_name, 5, visualization_msgs::Marker::CUBE_LIST, visualization_msgs::Marker::ADD, p, scale, color);
+  path_marker_follow = createMarker(frame_id, node_name, 7, visualization_msgs::Marker::POINTS, visualization_msgs::Marker::ADD, p, scale, color);
 
   isPathMarkerReady = true;
 }
@@ -396,6 +458,7 @@ void initBug(ros::NodeHandle& nh){
   leave_point = geometry_msgs::Point();
   isHitPointInit = false;
   isPoseReady = false;
+  isLaserReady = false;
 
   // Path length variables
   isPreviousReady = false;
@@ -422,14 +485,16 @@ void initBug(ros::NodeHandle& nh){
   node_state_sub = nh.subscribe("bugServer/bugNodeState", rate_hz, nodeStateCallback);
 
   ROS_INFO("Waiting for goToPoint service");
-  ros::service::waitForService("goToPointSwitch");
-  ROS_INFO("Waiting for followBoundaryAdvanceSwitch service");
-  ros::service::waitForService("followBoundaryAdvanceSwitch");
+  ros::service::waitForService("goToPointAdvancedSwitch");
+  ROS_INFO("Waiting for followBoundaryAdvancedSwitch service");
+  ros::service::waitForService("followBoundaryAdvancedSwitch");
 
-  srv_client_go_to_point = nh.serviceClient<bug_algorithms::bugSwitch>("goToPointSwitch", true);
-  srv_client_follow_boundary = nh.serviceClient<bug_algorithms::bugSwitch>("followBoundaryAdvanceSwitch", true);
+  srv_client_go_to_point = nh.serviceClient<bug_algorithms::bugSwitch>("goToPointAdvancedSwitch", true);
+  srv_client_follow_boundary = nh.serviceClient<bug_algorithms::bugSwitch>("followBoundaryAdvancedSwitch", true);
 
   waitPose();
+  waitLaser();
+
   initial_position_ = position_;
 
   initial_to_goal_distance = getDistance(initial_position_, desired_position_);
@@ -441,11 +506,16 @@ void initBug(ros::NodeHandle& nh){
   // Subscribers are ready
   areSubsDown = false;
 
-  // Changing node state to Executing
-  node_state_ = Executing;
+  // Check if the current state is Initializing for the triggered Stopping case
+  if(node_state_ == Initializing){
+    // Changing node state to Executing
+    node_state_ = Executing;
 
-  // Initialize going to the point
-  changeState(GoToPoint);
+    // Initialize going to the point
+    previous_time = ros::Time::now();
+    node_state_time = 0;
+    changeState(GoToPoint);
+  }
 }
 
 void pauseBug(bool isPause){
@@ -482,9 +552,9 @@ void bugConditions(){
   if(state_ == GoToPoint){
     // Checking if there is an obstacle in the way
     if((abs(err_yaw) < 0.1) &&
-       ((regions_["front_right"] > 0.15 && regions_["front_right"] < dist_detection-0.1) ||
+       ((regions_["front_right"] > 0.15 && regions_["front_right"] < dist_detection) ||
         (regions_["front"] > 0.15 && regions_["front"] < dist_detection) ||
-        (regions_["front_left"] > 0.15 && regions_["front_left"] < dist_detection-0.1))){
+        (regions_["front_left"] > 0.15 && regions_["front_left"] < dist_detection))){
 
       // If the value of this variable is false then
       // it's necessary to reset the values for the starting and hit point
@@ -552,6 +622,11 @@ void bugConditions(){
         count_state_time = 0;
       }
     }
+
+    if(getDistance(position_, desired_position_) < 0.3){
+      changeState(Success);
+      return;
+    }
   }
 }
 
@@ -569,7 +644,7 @@ int main(int argc, char **argv)
   // While the node is in Pause, it only will call the pauseBug function once.
   bool pauseBand = true;
 
-  nodeStateGlobal.algorithm = 2;
+  nodeStateGlobal.algorithm = algorithm_id;
 
   node_state_pub = nh.advertise<bug_algorithms::nodeState>("bugServer/bugNodeStateInternal", rate_hz);
   algorithm_state_pub = nh.advertise<bug_algorithms::algorithmState>("bugServer/algorithmState", rate_hz);

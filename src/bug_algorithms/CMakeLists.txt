@@ -184,6 +184,9 @@ target_link_libraries(go_to_point ${catkin_LIBRARIES})
 add_executable(go_to_point_advanced src/go_to_point_advanced.cpp)
 target_link_libraries(go_to_point_advanced ${catkin_LIBRARIES})
 
+add_executable(go_to_point_intensity src/go_to_point_intensity.cpp)
+target_link_libraries(go_to_point_intensity ${catkin_LIBRARIES})
+
 add_executable(follow_boundary src/follow_boundary.cpp)
 target_link_libraries(follow_boundary ${catkin_LIBRARIES})
 

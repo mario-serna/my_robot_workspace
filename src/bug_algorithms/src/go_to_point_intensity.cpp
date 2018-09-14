@@ -13,7 +13,6 @@
 #include "utils.h"
 
 static int rateHz = 20;
-static int algorithm = -1;
 static bool isSimulation = true;
 static bool isPoseReady = false;
 static bool isLaserReady = false;
@@ -23,19 +22,18 @@ static float linear_vel_, angular_vel_;
 enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 static int node_state_ = Waiting;
 
-enum States {FixYaw, GoStraight, MoveAvoiding, Done};
+enum States {FixYaw, GoStraight, Done};
 static int state_ = FixYaw;
 
 static float max_laser_range = 4.0;
 static float yaw_ = 0;
 static geometry_msgs::Point position_ = geometry_msgs::Point();
 static geometry_msgs::Point desired_position_ = geometry_msgs::Point();
-static geometry_msgs::Point target_position_ = geometry_msgs::Point();
-static float yaw_precision_ = PI/60; // 3 degrees
+static float yaw_precision_ = PI/36; // 5 degrees
 static float dist_precision_ = 0.3;
 static float dist_detection = 0.5;
-
-static bool isLeft = true;
+static float initial_to_goal_distance = 0.0;
+static float current_to_goal_distance = 0.0;
 
 static map<string, float> regions_ = {
   {"right",0},
@@ -56,7 +54,6 @@ static map<int, string> node_state_desc = {
 static map<int, string> state_desc_ = {
   {FixYaw, "fix the yaw"},
   {GoStraight, "go straight ahead"},
-  {MoveAvoiding, "move avoiding"},
   {Done, "done"}
 };
 
@@ -64,19 +61,12 @@ geometry_msgs::Twist twist_msg;
 ros::Publisher vel_pub;
 ros::Subscriber odom_sub;
 ros::Subscriber laser_sub;
-ros::Subscriber target_point_sub;
 
 bool goToPointSwitch(bug_algorithms::bugSwitchRequest& request, bug_algorithms::bugSwitchResponse& response){
   node_state_ = request.state;
   cout << "Go to point node state: " << node_state_ << " | " << node_state_desc[node_state_] << endl;
 
   return true;
-}
-
-void changeState(int state){
-  state_ = state;
-  string s = state_desc_[state_];
-  ROS_INFO("Go to point - State changed to: %s", s.c_str());
 }
 
 void odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
@@ -117,11 +107,6 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
   //         regions_["right"], regions_["front_right"], regions_["front"], regions_["front_left"], regions_["left"]);
 }
 
-void targetPointCallback(const geometry_msgs::Point::ConstPtr& msg){
-  target_position_.x = msg->x;
-  target_position_.y = msg->y;
-}
-
 void waitPose(){
   /*This prevents the robot's pose from being 0*/
 
@@ -147,53 +132,58 @@ void waitLaser(){
   ROS_INFO("Laser ok!");
 }
 
-void fixYaw(geometry_msgs::Point des_position, float precision){
-  float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
+void changeState(int state){
+  state_ = state;
+  string s = state_desc_[state_];
+  //ROS_INFO("Go to point - State changed to: %s", s.c_str());
+}
+
+// Simulating radially symmetric intensity
+float getIntensity(){
+  current_to_goal_distance = getDistance(position_, desired_position_);
+  // Mapping the current to goal distance in the range [0,1] from initial to goal distance to 0
+  return mapRangeFloat(current_to_goal_distance, initial_to_goal_distance, 0, 0, 1);
+}
+
+// Simulating align signal from the tower
+bool isAlign(){
+  float desired_yaw = atan2(desired_position_.y - position_.y, desired_position_.x - position_.x);
   float err_yaw = normalizeAngle(desired_yaw - yaw_);
+  return (abs(err_yaw) <= yaw_precision_);
+}
+
+void fixYaw(geometry_msgs::Point des_position){
 
   //ROS_INFO("Yaw error: %f", err_yaw);
 
   twist_msg = geometry_msgs::Twist();
 
-  if(abs(err_yaw) > yaw_precision_ && abs(err_yaw) < yaw_precision_*precision){
-    float region = err_yaw > 0 ? regions_["front_left"] : regions_["front_right"];
-    if(regions_["front"] > 0.35 && region > 0.35){
-      if(regions_["front"] < dist_detection+0.2 && region < dist_detection+0.2)
-        twist_msg.linear.x = 0.2;
-      else
-        twist_msg.linear.x = linear_vel_;
-      twist_msg.angular.z = (err_yaw > 0 ? 0.1 : -0.1);
-    } else{
-      twist_msg.angular.z = (err_yaw > 0 ? angular_vel_ : -angular_vel_);
-    }
+  if(!isAlign()){
+    twist_msg.angular.z = angular_vel_;
     vel_pub.publish(twist_msg);
-  } else if(abs(err_yaw) > yaw_precision_){
-    twist_msg.angular.z = (err_yaw > 0 ? angular_vel_ : -angular_vel_);
-    vel_pub.publish(twist_msg);
-  }
-
-  if(abs(err_yaw) <= yaw_precision_){
+  } else{
+    //ROS_INFO("Yaw error: %f", err_yaw);
     changeState(GoStraight);
   }
 }
 
 void goStraightAhead(geometry_msgs::Point des_position){
-  float desired_yaw = atan2(des_position.y - position_.y, des_position.x - position_.x);
-  float err_yaw = desired_yaw - yaw_;
+
   float err_pos = getDistance(position_, des_position);
 
-  float region = err_yaw > 0 ? regions_["front_left"] : regions_["front_right"];
-
-  if(err_pos > dist_precision_){
+  if(getIntensity() <= 0.98){
     twist_msg = geometry_msgs::Twist();
-    if(regions_["front"] < dist_detection+0.2 && region < dist_detection+0.2){
-      if(regions_["front"] < dist_detection-0.15 || region < dist_detection-0.15)
-        twist_msg.linear.x = 0.1;
+    if(regions_["front"] < dist_detection+0.2 &&
+       regions_["front_right"] < dist_detection+0.2 &&
+       regions_["front"] < dist_detection+0.2){
+      if(regions_["front"] < dist_detection-0.1)
+        twist_msg.linear.x = 0.0;
       else
         twist_msg.linear.x = 0.2;
     } else
       twist_msg.linear.x = linear_vel_;
 
+    ROS_INFO("Vel: %f | Reg: %f", twist_msg.linear.x, regions_["front"]);
     vel_pub.publish(twist_msg);
   } else{
     ROS_INFO("Position: %f | %f", position_.x, position_.y);
@@ -202,7 +192,7 @@ void goStraightAhead(geometry_msgs::Point des_position){
     changeState(Done);
   }
 
-  if(abs(err_yaw) > yaw_precision_){
+  if(!isAlign()){
     //ROS_INFO("Yaw error: %f", err_yaw);
     changeState(FixYaw);
   }
@@ -223,17 +213,14 @@ void shutDownSubscribers(){
 
 void initNode(ros::NodeHandle& nh){
   string vel_topic, odom_topic, laser_topic;
-  nh.getParam("/algorithm", algorithm);
   nh.getParam("/simulation", isSimulation);
   nh.getParam("/desired_x", desired_position_.x);
   nh.getParam("/desired_y", desired_position_.y);
   nh.getParam("/velocity", linear_vel_);
 
-  ROS_INFO("Desired position: %f | %f", desired_position_.x, desired_position_.y);
-  target_position_ = desired_position_;
-
   angular_vel_ = linear_vel_+0.1;
   isPoseReady = false;
+  isLaserReady = false;
 
   if(isSimulation){
     cout << "Go_to_point: Using GazeboSim topics\n";
@@ -250,10 +237,12 @@ void initNode(ros::NodeHandle& nh){
   vel_pub = nh.advertise<geometry_msgs::Twist>(vel_topic, rateHz);
   odom_sub = nh.subscribe(odom_topic, rateHz, odomCallback);
   laser_sub = nh.subscribe(laser_topic, rateHz, laserCallback);
-  target_point_sub = nh.subscribe("bugServer/targetPoint", rateHz, targetPointCallback);
 
   waitPose();
   waitLaser();
+
+  initial_to_goal_distance = getDistance(position_, desired_position_);
+  current_to_goal_distance = initial_to_goal_distance;
 
   // Check if the current state is Initializing for the triggered Stopping case
   if(node_state_ == Initializing){
@@ -268,11 +257,11 @@ void initNode(ros::NodeHandle& nh){
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "go_to_point_advanced");
+  ros::init(argc, argv, "go_to_point_intensity");
   ros::NodeHandle nh;
   bool pauseBand = true;
 
-  ros::ServiceServer service = nh.advertiseService("goToPointAdvancedSwitch", goToPointSwitch);
+  ros::ServiceServer service = nh.advertiseService("goToPointIntensitySwitch", goToPointSwitch);
 
   ros::Rate rate(rateHz);
 
@@ -285,11 +274,10 @@ int main(int argc, char **argv)
 
     } else if(node_state_ == Executing){
       pauseBand = true;
-
       if(state_ == FixYaw)
-        fixYaw(target_position_,3);
+        fixYaw(desired_position_);
       else if(state_ == GoStraight)
-        goStraightAhead(target_position_);
+        goStraightAhead(desired_position_);
       else if(state_ == Done){
         stop();
         node_state_ = Waiting;

@@ -10,7 +10,7 @@
 #include "bug_algorithms/bugSwitch.h"
 #include "bug_algorithms/nodeState.h"
 
-enum BugAlgorithms {Bug0, Bug1, Bug2, DistBug, IntelBug, IBug, TangetBug, PointBug};
+enum BugAlgorithms {Bug0, Bug1, Bug2, DistBug, IntelligentBug, IBug, TangentBug, PointBug};
 enum NodeStates {Waiting, Initializing, Executing, Pause, Stopping};
 
 static bug_algorithms::nodeState nodeGlobalState;
@@ -28,9 +28,9 @@ static map<int, string> algorithm = {
   {Bug1, "bug1Switch"},
   {Bug2, "bug2Switch"},
   {DistBug, "distBugSwitch"},
-  {IntelBug, "intelligentBugSwitch"},
+  {IntelligentBug, "intelligentBugSwitch"},
   {IBug, "iBugSwitch"},
-  {TangetBug, "tangetBugSwitch"},
+  {TangentBug, "tangentBugSwitch"},
   {PointBug, "pointBugSwitch"},
 
 };
@@ -107,9 +107,11 @@ bool initializeBugAlgorithm(bug_algorithms::bugServiceRequest& request, bug_algo
   string s = "/bugServer/" + algorithm[request.algorithm];
 
   if(ros::service::call(s, srv)){
-    ROS_INFO("Calling to: %s", s.c_str());
+    ROS_INFO("Calling: %s", s.c_str());
+    srv.response.message = "Success on calling " + s;
   } else {
     ROS_INFO("Error calling service");
+    srv.response.message = "A problem has ocurred on the server!";
   }
 
   if(srv.response.success){

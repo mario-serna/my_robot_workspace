@@ -81,7 +81,7 @@ void waitPose(){
   bool wait = true;
   ROS_INFO("Waiting for pose...");
 
-  while(!isPoseReady){
+  while(!isPoseReady && node_state_ == Initializing){
     ros::spinOnce();
   }
   ROS_INFO("Robot: %f, %f", position_.x, position_.y);
@@ -179,11 +179,15 @@ void initNode(ros::NodeHandle& nh){
 
   waitPose();
 
-  node_state_ = Executing;
-  // Initialize state
-  isNodeInit = true;
+  // Check if the current state is Initializing for the triggered Stopping case
+  if(node_state_ == Initializing){
+    // Changing node state to Executing
+    node_state_ = Executing;
+    // Initialize state
+    isNodeInit = true;
 
-  changeState(FixYaw);
+    changeState(FixYaw);
+  }
 }
 
 int main(int argc, char **argv)

@@ -55,7 +55,7 @@ static bool leaveCondition = false;
 static bool checkCondition = false;
 static int count_same_point = 0;
 static int count_local_maximum = 0;
-static float yaw_precision_ = PI/90; // 2 degrees
+static float yaw_precision_ = PI/18; // 10 degrees
 static float desired_yaw = 0.0;
 static float err_yaw = 0.0;
 static float dist_precision_ = 0.3;
@@ -526,10 +526,10 @@ void initBug(ros::NodeHandle& nh){
   ROS_INFO("Waiting for goToPoint service");
   ros::service::waitForService("goToPointIntensitySwitch");
   ROS_INFO("Waiting for followBoundaryAdvanceSwitch service");
-  ros::service::waitForService("followBoundaryAdvanceSwitch");
+  ros::service::waitForService("followBoundaryAdvancedSwitch");
 
   srv_client_go_to_point = nh.serviceClient<bug_algorithms::bugSwitch>("goToPointIntensitySwitch", true);
-  srv_client_follow_boundary = nh.serviceClient<bug_algorithms::bugSwitch>("followBoundaryAdvanceSwitch", true);
+  srv_client_follow_boundary = nh.serviceClient<bug_algorithms::bugSwitch>("followBoundaryAdvancedSwitch", true);
 
   waitPose();
   waitLaser();
@@ -644,14 +644,17 @@ void bugConditions(){
 
   if(current_intensity > best_intensity){
     best_intensity = current_intensity;
-    isCurrentClose = true;
     //cout << "Best intensity: " << best_intensity << endl;
+  }
+
+  if(current_intensity > hit_intensity){
+    isCurrentClose = true;
   }
 
   if(state_ == GoToPoint){
     if(isAlign() &&
        (regions_["front_left"] < dist_detection
-        || regions_["front"] < dist_detection-0.05
+        || regions_["front"] < dist_detection+0.05
         || regions_["front_right"] < dist_detection)){
       count_tolerance = 0;
       hit_intensity = current_intensity;
@@ -671,7 +674,7 @@ void bugConditions(){
   }
   else if(state_ == FollowBoundary){
 
-    if(count_state_time > (5*count_local_maximum)){
+    if(count_state_time > (5*count_local_maximum) && isCurrentClose){
       // Detecting local maximum
       if((intensity_sample[1] > intensity_sample[0]) && (intensity_sample[1] >= intensity_sample[2])){
         cout << "Local maximum: " << intensity_sample[1] - intensity_sample[0] << " ) " << intensity_sample[0] << " | " << intensity_sample[1] << " | " << intensity_sample[2] << endl;

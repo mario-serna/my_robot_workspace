@@ -71,7 +71,7 @@ void waitLaser(){
   bool wait = true;
   ROS_INFO("Waiting for laser...");
 
-  while(!isLaserReady){
+  while(!isLaserReady && node_state_ == Initializing){
     ros::spinOnce();
   }
 }
@@ -213,10 +213,17 @@ void initNode(ros::NodeHandle& nh){
   lost_obstacle_pub = nh.advertise<std_msgs::Bool>("lost_obstacle", rate_hz);
   laser_sub = nh.subscribe(laser_topic, rate_hz, laserCallback);
 
-  node_state_ = Executing;
-  isNodeInit = true;
-  // Initialize state
-  changeState(TurnLeftOnly);
+  waitLaser();
+
+  // Check if the current state is Initializing for the triggered Stopping case
+  if(node_state_ == Initializing){
+    // Changing node state to Executing
+    node_state_ = Executing;
+    // Initialize state
+    isNodeInit = true;
+    // Initialize state
+    changeState(TurnLeftOnly);
+  }
 }
 
 

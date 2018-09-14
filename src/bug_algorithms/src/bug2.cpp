@@ -609,11 +609,11 @@ void bugConditions(){
     } else{
       if(count_state_time > 9 && getDistance(position_, hit_point) < 0.3){
         count_same_point++;
-        if(reverseCriterion && count_same_point == 2){
+        if(reverseCriterion && count_same_point == 3){
           cout << "Count for hit point is: " << count_same_point << endl;
           changeState(Fail);
           return;
-        } else if(!reverseCriterion){
+        } else if(!reverseCriterion && count_same_point == 2){
           cout << "Count for hit point is: " << count_same_point << endl;
           changeState(Fail);
           return;

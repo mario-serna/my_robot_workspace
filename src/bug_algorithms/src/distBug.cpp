@@ -650,11 +650,11 @@ void bugConditions(){
       if(getDistance(position_, hit_point) < 0.3){
         // The robot completed a loop around the obstacle
         count_same_point++;
-        if(reverseCriterion && count_same_point == 2){
+        if(reverseCriterion && count_same_point == 3){
           cout << "Count for hit point is: " << count_same_point << endl;
           changeState(Fail);
           return;
-        } else if(!reverseCriterion){
+        } else if(!reverseCriterion && count_same_point == 2){
           cout << "Count for hit point is: " << count_same_point << endl;
           changeState(Fail);
           return;

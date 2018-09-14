@@ -327,9 +327,9 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
 
   int n;
   int size = msg->ranges.size();
-  float best_point_distance = 9999.0;
+  float best_path_distance = 9999.0;
   float closest_point_distance = 9999.0;
-  float point_distance, current_to_point_distance;
+  float path_distance, current_to_point_distance, point_to_goal_distance;
   float a,b;
   geometry_msgs::Point p = geometry_msgs::Point();
   int count_discontinuity_points = 0;
@@ -443,15 +443,16 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
             p.y  = laser_position_.y + (disPointVal[i]*sin(yaw_ + val));
 
             current_to_point_distance = getDistance(position_, p);
+            point_to_goal_distance = getDistance(p, desired_position_);
             // Total distance = current position to point + point position to goal
-            point_distance = current_to_point_distance + getDistance(p, desired_position_);
+            path_distance = current_to_point_distance + point_to_goal_distance;
 
-            if(point_distance < best_point_distance){
+            if(path_distance < best_path_distance){
               closest_point_distance = getDistance(p, desired_position_);
-              best_point_distance = point_distance;
+              best_path_distance = path_distance;
               n = disPointIndex[i];
               target = p;
-              target.z = best_point_distance;
+              target.z = point_to_goal_distance;
             }
 
             //cout << "Ind: " << disPointIndex[i] << " | Val: " << val;
@@ -459,16 +460,16 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
           }
         }
 
-        if(temp_lock && (best_point_distance < 999) && (closest_point_distance > current_to_goal_distance) && (abs(err_yaw) < PI/6)){
+        if(temp_lock && (best_path_distance < 999) && (closest_point_distance > current_to_goal_distance) && (abs(err_yaw) < PI/6)){
           cout << "Point Locked!!" << endl;
           cout << "X: " << target.x << " | Y: " << target.y << endl;
-          cout << "Best point distance: " << best_point_distance << endl;
+          cout << "Best point distance: " << best_path_distance << endl;
           cout << "Current goal distance: " << current_to_goal_distance << endl;
           lockPoint = true;
-        } else if(best_point_distance > 999 || best_point_distance < current_to_goal_distance){
-          best_point_distance = 0;
+        } else if(best_path_distance > 999 || best_path_distance < current_to_goal_distance){
+          best_path_distance = 0;
           target = desired_position_;
-          target.z = best_point_distance;
+          target.z = best_path_distance;
         }
 
         //cout << "Align point: " << laser_align_index << endl;
@@ -476,9 +477,9 @@ void laserDetectDiscontinuityCallback(const sensor_msgs::LaserScan::ConstPtr& ms
         //cout << "Best distance: " << best_point_distance << endl;
       } else{
 
-        best_point_distance = 0;
+        best_path_distance = 0;
         target = desired_position_;
-        target.z = best_point_distance;
+        target.z = best_path_distance;
         //cout << "Best point: " << laser_align_index << endl;
         //cout << "Best distance: " << best_point_distance << endl;
       }
@@ -881,7 +882,7 @@ void bugConditions(){
     if(state_ == GoToPointFollowing){
 
       if(!leaveCondition){
-        if(free_distance > 0.5){
+        if(free_distance > 0.5 && (target.z < current_to_goal_distance) && (abs(err_yaw) < PI/2)){
           cout << "Leave condition 2: " << free_distance << endl;
           leaveCondition = true;
           count_tolerance = 0;
@@ -896,10 +897,12 @@ void bugConditions(){
 
       } else{
         leaveCondition = false;
-        if(isFreePath(desired_position_, 0.3) == 1){
+        if(isFreePath(target, 0.3) == 1){
           cout << "Here is the problem" << endl;
           changeState(GoToPoint);
           return;
+        } else{
+          cout << "No free path" << endl;
         }
       }
     }

@@ -38,6 +38,8 @@ static geometry_msgs::Point desired_position_ = geometry_msgs::Point();
 
 static bool isLeft = true;
 static bool isReverseActive = false;
+// This variable is used for making sure the robot is close enough to the obstacle for first time
+static bool isCloseEnough = false;
 static bool reverseCriterion;
 static bool chooseCriterion = true;
 
@@ -85,7 +87,7 @@ void waitPose(){
   bool wait = true;
   ROS_INFO("Waiting for pose...");
 
-  while(!isPoseReady){
+  while(!isPoseReady && node_state_ == Initializing){
     ros::spinOnce();
   }
   //ROS_INFO("Robot: %f, %f", position_.x, position_.y);
@@ -98,7 +100,7 @@ void waitLaser(){
   bool wait = true;
   ROS_INFO("Waiting for laser...");
 
-  while(!isLaserReady){
+  while(!isLaserReady && node_state_ == Initializing){
     ros::spinOnce();
   }
 }
@@ -160,20 +162,28 @@ void takeActionSimple(){
   }
 
   if(!isReverseActive){
-    if((r1 < dist_detection) ||
-       (regions_["front"] <= dist_detection) ||
-       (r2 < dist_detection-0.1)){
-      if((regions_["front"] > dist_detection+0.1) && (r3 > 0.3)){
-        changeState(TurnLeft);
+    if(!isCloseEnough){
+      if(r3 < dist_detection+0.1){
+        isCloseEnough = true;
       } else{
         changeState(TurnLeftOnly);
       }
-    } else if(r3 > dist_detection){
-      changeState(FindBoundary);
-    } else if(r3 > 0.3 && r3 < dist_detection+0.05){
-      changeState(FollowBoundary);
     } else{
-      changeState(TurnLeftOnly);
+      if((r1 < dist_detection) ||
+         (regions_["front"] <= dist_detection) ||
+         (r2 < dist_detection-0.1)){
+        if((regions_["front"] > dist_detection+0.1) && (r3 > 0.3)){
+          changeState(TurnLeft);
+        } else{
+          changeState(TurnLeftOnly);
+        }
+      } else if(r3 > dist_detection){
+        changeState(FindBoundary);
+      } else if(r3 > 0.3 && r3 < dist_detection+0.05){
+        changeState(FollowBoundary);
+      } else{
+        changeState(TurnLeftOnly);
+      }
     }
   }
 }
@@ -220,7 +230,16 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg){
 
 void chooseDirection(){
   if(chooseCriterion){
-    if((regions_["left"]+regions_["front_left"]) < (regions_["right"]+regions_["front_right"])){
+    if((regions_["left"] < 1 || regions_["right"] < 1)){
+      if(regions_["left"] < regions_["right"]){
+        isLeft = false;
+        cout << "Choose direction: Right ( " << regions_["left"] << " | " << regions_["right"] << " )" << endl;
+      } else{
+        isLeft = true;
+        cout << "Choose direction: Left ( " << regions_["left"] << " | " << regions_["right"] << " )" << endl;
+      }
+
+    } else if((regions_["left"]+regions_["front_left"]) < (regions_["right"]+regions_["front_right"])){
       isLeft = false;
       cout << "Choose direction: Right ( " << (regions_["left"]+regions_["front_left"]) << " | " << (regions_["right"]+regions_["front_right"]) << " )" << endl;
     } else{
@@ -307,6 +326,8 @@ void initNode(ros::NodeHandle& nh){
 
   angular_vel_ = linear_vel_+0.1;
   isPoseReady = false;
+  isLaserReady = false;
+  isCloseEnough = false;
 
   if(isSimulation){
     cout << "Follow boundary: Using GazeboSim topics\n";
@@ -329,15 +350,20 @@ void initNode(ros::NodeHandle& nh){
   waitLaser();
   waitPose();
 
-  node_state_ = Executing;
-  isNodeInit = true;
+  // Check if the current state is Initializing for the triggered Stopping case
+  if(node_state_ == Initializing){
+    // Changing node state to Executing
+    node_state_ = Executing;
+    // Initialize state
+    isNodeInit = true;
 
-  cout << "Simulation? " << isSimulation << endl;
-  cout << "Choose criterion? " << chooseCriterion << endl;
-  chooseDirection();
+    cout << "Simulation? " << isSimulation << endl;
+    cout << "Choose criterion? " << chooseCriterion << endl;
+    chooseDirection();
 
-  // Initialize state
-  changeState(TurnLeftOnly);
+    // Initialize state
+    changeState(TurnLeftOnly);
+  }
 }
 
 
